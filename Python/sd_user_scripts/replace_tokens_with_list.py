@@ -57,28 +57,30 @@ class Script(scripts.Script):
         prompt_txt = gr.TextArea(label="Prompts", placeholder="*pet*, a cat, a dog, a bear")
         return [help_label, prompt_txt]
 
-    def run(self, p, help_label, txt: str):
-        lines = [x.strip() for x in txt.splitlines()]
-        lines = [x for x in lines if (x.find(',') >= 0)]
-        if (len(lines) == 0):
-            return
 
-        replacer = TokenReplacer(lines)
-        prompts = replacer.createPrompts(p.prompt)
-        
-        img_count = len(prompts) * p.n_iter
-        batch_count = math.ceil(img_count / p.batch_size)
-        print(f"Will process {img_count} images in {batch_count} batches.")
+def run(self, p, help_label, txt: str):
+    lines = [x.strip() for x in txt.splitlines()]
+    lines = [x for x in lines if (x.find(',') >= 0)]
+    if (len(lines) == 0):
+        return
 
-        p.do_not_save_grid = True
+    replacer = TokenReplacer(lines)
+    prompts = replacer.createPrompts(p.prompt)
 
-        state.job_count = batch_count
+    img_count = len(prompts) * p.n_iter
+    batch_count = math.ceil(img_count / p.batch_size)
+    loop_count = math.ceil(batch_count / p.n_iter)
+    print(f"Will process {img_count} images in {batch_count} batches.")
 
-        images = []
-        for batch_no in range(batch_count):
-            state.job = f"{batch_no + 1} out of {batch_count * p.n_iter}"
-            p.prompt = prompts[batch_no*p.batch_size:(batch_no+1)*p.batch_size] * p.n_iter
-            proc = process_images(p)
-            images += proc.images
+    p.do_not_save_grid = True
 
-        return Processed(p, images, p.seed, "")
+    state.job_count = batch_count
+
+    images = []
+    for loop_no in range(loop_count):
+        state.job = f"{loop_no + 1} out of {loop_count}"
+        p.prompt = prompts[loop_no*p.batch_size:(loop_no+1)*p.batch_size] * p.n_iter
+        proc = process_images(p)
+        images += proc.images
+
+    return Processed(p, images, p.seed, "")
