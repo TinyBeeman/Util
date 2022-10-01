@@ -73,16 +73,71 @@ def main():
 
   .gallery img:focus {
     z-index: 9;
-    transform: scale(2);
+    transform: scale(3);
     transition: transform ease 0.5s;
   }
   </style>
   </head>
   <body>
+
   """
 
 
-  html_footer = "</body></html>\n"
+  html_footer = """
+  <script id="rendered-js" >
+    document.addEventListener("DOMContentLoaded", function() {
+    var lazyloadImages;    
+
+    if ("IntersectionObserver" in window) {
+      lazyloadImages = document.querySelectorAll(".lazy");
+      var imageObserver = new IntersectionObserver(function(entries, observer) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            var image = entry.target;
+            image.src = image.dataset.src;
+            image.classList.remove("lazy");
+            imageObserver.unobserve(image);
+          }
+        });
+      });
+
+      lazyloadImages.forEach(function(image) {
+        imageObserver.observe(image);
+      });
+    } else {  
+      var lazyloadThrottleTimeout;
+      lazyloadImages = document.querySelectorAll(".lazy");
+      
+      function lazyload () {
+        if(lazyloadThrottleTimeout) {
+          clearTimeout(lazyloadThrottleTimeout);
+        }    
+
+        lazyloadThrottleTimeout = setTimeout(function() {
+          var scrollTop = window.pageYOffset;
+          lazyloadImages.forEach(function(img) {
+              if(img.offsetTop < (window.innerHeight + scrollTop)) {
+                img.src = img.dataset.src;
+                img.classList.remove('lazy');
+              }
+          });
+          if(lazyloadImages.length == 0) { 
+            document.removeEventListener("scroll", lazyload);
+            window.removeEventListener("resize", lazyload);
+            window.removeEventListener("orientationChange", lazyload);
+          }
+        }, 20);
+      }
+
+      document.addEventListener("scroll", lazyload);
+      window.addEventListener("resize", lazyload);
+      window.addEventListener("orientationChange", lazyload);
+    }
+  })
+  </script>
+  </body>
+  </html>
+  """
   html_body = ""
 
   for tlist in jobs:
@@ -91,7 +146,7 @@ def main():
     html_body += f"\n<H3 class=\"token\"><span>{token}</span></H3></div>\n<div class=\"gallery\">"
 
     for i in files:
-      html_body += f"<img src=\"{token}/{i}\" tabindex=\"0\" />"
+      html_body += f"<img class=\"lazy\" data-src=\"{token}/{i}\" tabindex=\"0\" />"
 
     html_body += "</div>"
 
