@@ -47,7 +47,7 @@ def main():
 			continue
 		token = match.group('token')
 		if (len(token) > 0):
-			jobs.append((p, token))
+			jobs.append((p, token.strip('() ')))
 
 	for ft in jobs:
 		oldFile = join(path, ft[0])
