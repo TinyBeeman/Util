@@ -37,10 +37,15 @@ def main():
 
   html_header = """<html>
   <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
   <style>
 
     * { box-sizing: border-box; }
   body { background: #eee; }
+
+  .center {
+    text-align: center;
+  }
 
   H3.token {
     text-align: center;
@@ -85,70 +90,85 @@ def main():
 
   html_footer = """
   <script id="rendered-js" >
-    document.addEventListener("DOMContentLoaded", function() {
-    var lazyloadImages;    
 
-    if ("IntersectionObserver" in window) {
-      lazyloadImages = document.querySelectorAll(".lazy");
-      var imageObserver = new IntersectionObserver(function(entries, observer) {
-        entries.forEach(function(entry) {
-          if (entry.isIntersecting) {
-            var image = entry.target;
-            image.src = image.dataset.src;
-            image.classList.remove("lazy");
-            imageObserver.unobserve(image);
-          }
-        });
-      });
-
-      lazyloadImages.forEach(function(image) {
-        imageObserver.observe(image);
-      });
-    } else {  
-      var lazyloadThrottleTimeout;
-      lazyloadImages = document.querySelectorAll(".lazy");
-      
-      function lazyload () {
-        if(lazyloadThrottleTimeout) {
-          clearTimeout(lazyloadThrottleTimeout);
-        }    
-
-        lazyloadThrottleTimeout = setTimeout(function() {
-          var scrollTop = window.pageYOffset;
-          lazyloadImages.forEach(function(img) {
-              if(img.offsetTop < (window.innerHeight + scrollTop)) {
-                img.src = img.dataset.src;
-                img.classList.remove('lazy');
-              }
-          });
-          if(lazyloadImages.length == 0) { 
-            document.removeEventListener("scroll", lazyload);
-            window.removeEventListener("resize", lazyload);
-            window.removeEventListener("orientationChange", lazyload);
-          }
-        }, 20);
+	var g_data = null;
+	
+	function filter(search_txt) {
+		var search_txt_lower = search_txt.toLowerCase().trim();
+		var gallery_root = $("#gallery_root");
+		gallery_root.empty();
+      	for (var token in g_data) {
+			if (search_txt.length > 0 && !token.toLowerCase().includes(search_txt_lower))
+				continue;
+			var newDiv = $( '<div class="header"><H3 class="token"><span>' + token  + '</span></H3></div>' );
+			var newGallery = $( '<div class="gallery"></div>' );
+			rgImages = g_data[token];
+			for (var k in rgImages)
+			{
+				imgPath = rgImages[k];
+				newGallery.append($( `<img class="gallery_img" loading="lazy" src="${token}/${imgPath}" tabindex="0" />` ));
+			}
+			gallery_root.append(newDiv);
+			gallery_root.append(newGallery);
       }
+	}
 
-      document.addEventListener("scroll", lazyload);
-      window.addEventListener("resize", lazyload);
-      window.addEventListener("orientationChange", lazyload);
+    document.addEventListener("DOMContentLoaded", function() {
+      var json = $("#img-data").attr("value");
+      g_data = JSON.parse(json);
+	  filter("");
+
+	  $("#filter_btn").click(function() {
+		filter($("#search_box").val());
+	  });
+
+	  $("#clear_btn").click(function() {
+		filter("");
+	  });
     }
-  })
+  	);
   </script>
   </body>
   </html>
   """
-  html_body = ""
+  html_body = """<div id="root">
+                  <div class="search_controls center">
+                    <input id="search_box" type="text"/><button id="clear_btn">X</button><button id="filter_btn">Filter</button>
+                  </div>
+                  <div id="gallery_root">
+                  </div>"""
 
+  json_tag_start = """<data class="json-data" id="img-data" value='""" + "\n{"
+  json_tag_body = ""
+  json_tag_end = "\n}'/>"
+
+  first_job = True;
   for tlist in jobs:
     token = tlist[0]
     files = tlist[1]
-    html_body += f"\n<H3 class=\"token\"><span>{token}</span></H3></div>\n<div class=\"gallery\">"
 
-    for i in files:
-      html_body += f"<img class=\"lazy\" data-src=\"{token}/{i}\" tabindex=\"0\" />"
+    if (first_job):
+      json_tag_body += "\n\t\"" + token + "\": ["
+      first_job = False
+    else:
+      json_tag_body += ",\n\t\"" + token + "\": ["
 
-    html_body += "</div>"
+    # html_body += f"\n<H3 class=\"token\"><span>{token}</span></H3></div>\n<div class=\"gallery\">"
+    first_file = True
+    for iFile in files:
+      if (first_file):
+        json_tag_body += "\n\t\t\"" + iFile + "\""
+        first_file = False
+      else:
+        json_tag_body += ",\n\t\t\"" + iFile + "\""
+
+    json_tag_body += "\n\t]"
+
+    #html_body += f"<img class=\"lazy\" data-src=\"{token}/{i}\" tabindex=\"0\" />"
+
+  html_body += json_tag_start + json_tag_body + json_tag_end;
+
+  html_body += "</div>" # end of root div
 
   html_file = open(join(path, "gallery.html"), "w")
   html_file.write(html_header + html_body + html_footer)
