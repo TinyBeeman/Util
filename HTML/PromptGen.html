@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<head>
+	<title>Prompt Style Generator</title>
+	<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.13.2/themes/smoothness/jquery-ui.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
+	<style>
+		textarea { resize: none; }
+		.txtbox{ width: 100%; }
+
+		ui-widget input, .ui-widget select, .ui-widget textarea, .ui-widget button {
+			font-size: 0.75em !important;
+			font-weight:normal !important;
+		}
+
+		.in_out_container {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			grid-template-rows: repeat(2, auto);
+		}
+
+		.in_container {
+			grid-column: 1;
+			grid-row: 1;
+		}
+
+		.out_container {
+			grid-column: 2;
+			grid-row: 1;
+		}
+
+		.process_container {
+			grid-row: 2;
+			grid-column: 1;
+			grid-column-end: 3;
+			
+			display: grid;
+		}
+
+		.options_container {
+			grid-row: 1;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.horiz_container {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.list_edit_container {
+			display: grid;
+			grid-template-columns: 1fr 3fr;
+			column-gap: 6px;
+		}
+
+		.list_container {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			grid-column: 1;
+		}
+
+		.item_container {
+			grid-column: 2;
+
+			display: flex;
+			flex-direction: column;
+		}
+
+		.success {
+			color: green;
+		}
+
+		.error {
+			color: red;
+		}
+
+		.prop_row {
+			display: grid;
+			grid-template-columns: 10em 1fr;
+			grid-column-gap: 6px;
+		}
+
+		.prop_row label {
+			grid-column: 1;
+		}
+
+		label.changed {
+			color: red;
+		}
+
+		.prop_row textarea {
+			grid-column: 2;
+			width: 100%;
+		}
+
+	</style>
+
+</head>
+<body>
+	<div class="root">
+		<div id="tabs">
+			<ul class="tabs">
+				<li><a href="#tab_load_json">Load Prompt Json</a></li>
+				<li><a href="#tab_tools">Tools</a></li>
+				<li><a href="#tab_edit">Edit Entries</a></li>
+			</ul>
+			<div class="tab" id="tab_load_json" data-tab-name="Json Loader">
+				<div class="in_out_container">
+					<div class="in_container">
+						<textarea
+							id="json_in"
+							class="txtbox"
+							rows="25"
+							placeholder="list of strings"></textarea>
+					</div>
+					<div class="out_container">
+						<textarea
+							id="txt_out"
+							class="txtbox"
+							rows="25"
+							readonly></textarea>
+					</div>
+					<div class="process_container">
+						<div class="options_container">
+							<div class="horiz_container">
+								<button id="btn_load_json">Load Prompts</button>
+								<p id="p_load_results"></p>
+							</div>
+						</div>
+					</div>	
+				</div>
+			</div>
+
+			<div class="tab" id="tab_tools" data-tab-name="Tools">
+				<div class="in_out_container">
+					<div class="in_container">
+						<textarea
+							id="tool_in"
+							class="txtbox"
+							rows="25"
+							placeholder="list of strings"></textarea>
+					</div>
+					<div class="out_container">
+						<textarea
+							id="tool_out"
+							class="txtbox"
+							rows="25"
+							readonly></textarea>
+					</div>
+					<div class="process_container">
+						<div class="options_container">
+							<div class="horiz_container">
+								<button id="btn_get_artists_psv">Generate Artists PSV</button>
+								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
+								<button id="btn_get_subject_names">Generate Subject Names</button>
+								<button id="btn_get_json">Generate Json from DB</button>
+								<p id="p_tool_results"></p>
+							</div>
+						</div>
+					</div>	
+				</div>
+			</div>
+
+			<div class="tab" id="tab_edit" data-tab-name="Edit Entries">
+				<div class="list_edit_container">
+					<div class="list_container">
+						<select name="categories" id="sel_category">
+							<option disable selected value>select a category</option>
+							<option value="artists">artists</option>
+							<option value="subjects">subjects</option>
+						</select>
+						<select id="sel_item" name="list_items" size="20">
+							<option>Select</option>
+							<option>A</option>
+							<option>Category</option>
+						</select>
+						<button id="btn_new_entry">New Entry</button>
+					</div>
+					<div id="props" class="item_container">
+						<div class="prop_row">
+							<label for="txt_prop_1">prop 1</label><textarea id="txt_prop_1" data-prop="Prop1" rows="1">Value1</textarea>
+						</div>
+					</div>
+					<!--<div class="process_container">
+						<div class="options_container">
+							<div class="horiz_container">
+								<button id="btn_get_artists_psv">Generate Artists PSV</button>
+								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
+								<p id="p_tool_results"></p>
+							</div>
+						</div>
+					</div>-->
+				</div>
+			</div>
+			
+
+		</div>
+	</div>
+	<script>
+
+var process_mode = "";
+
+
+function report_results(success, msg)
+{
+	var p_result = null;
+
+	p_result = $("#p_" + process_mode + "_results");
+
+	p_result.removeClass("success failure");
+	p_result.addClass(success ? "success" : "error");
+	p_result.text(msg);
+}
+
+function get_sel_cat() { return $("#sel_category option").filter(":selected").val(); }
+function get_sel_cat_list_obj() { return get_list_obj_from_category(get_sel_cat()); }
+
+function refresh_edit_tab()
+{
+	var sel_cat = get_sel_cat()
+	$("#sel_item").empty();
+	$("#props").empty();
+
+	var list_obj = get_list_obj_from_category(sel_cat);
+	if (list_obj == null)
+		return;
+	
+	var item_list = $("#sel_item");
+	// item_list.attr("size", obj_prop_count(list_obj));
+	Object.keys(list_obj).forEach( key => {
+		item_list.append($( '<option value="' + key + '">' + key + '</option>' ));
+	});
+}
+
+function get_prop_val_from_obj(obj, prop)
+{
+	if (Object.keys(obj).includes(prop))
+		return obj[prop];
+	
+	return "";
+}
+
+function get_sel_key()
+{
+	var sel_key = $("#sel_item option").filter(":selected").val();
+}
+
+function refresh_edit_props()
+{
+	var props_div = $("#props");
+	props_div.empty();
+	
+	var sel_key = $("#sel_item option").filter(":selected").val();
+	if (sel_key != null && sel_key.length > 0)
+	{
+		list_obj = get_sel_cat_list_obj();
+		if (list_obj == null)
+			return;
+
+		sel_obj = list_obj[sel_key];
+		if (sel_obj != null)
+		{
+			var i = 0;
+			props = get_cols_from_category(get_sel_cat());
+			
+			props.forEach( prop_key => {
+				var change_val = get_prop_change( get_sel_cat(), sel_key, prop_key );
+				var val = (change_val == null) ? get_prop_val_from_obj(sel_obj, prop_key) : change_val;
+				var changed_class = (change_val == null) ? '' : ' prop_changed';
+				props_div.append( $( '<div class="prop_row"><label class="prop_label' + changed_class + '" for="txt_prop_' + i + '">' + prop_key + '</label><textarea class="txt_prop' + changed_class + '" id="txt_prop_' + i + '" data-prop="' + prop_key + '" rows="1">' + val + '</textarea></div>') );
+			});
+		}
+	}
+
+	$(".txt_prop").on('change keyup paste', function() {
+		var first_edit = (!$(this).hasClass("prop_changed"));
+		add_prop_change(get_sel_cat(), get_sel_key(), $(this).attr("data-prop"), $(this).val );
+		if (first_edit)
+		{
+			var label = $("label[for='" + $(this).attr('id') + "']");
+				label.addClass("prop_changed");
+			$(this).addClass("prop_changed");
+		}
+	});
+}
+
+var g_prop_changes = new Object();
+
+function get_prop_change_item(cat, item_key, ensure = false)
+{
+	if (!Object.keys(g_prop_changes).includes(cat))
+	{
+		if (ensure)
+			g_prop_changes[cat] = new Object();
+		else
+			return null;
+	}
+	
+	if (!Object.keys(g_prop_changes[cat]).includes(item_key))
+	{
+		if (ensure)
+			g_prop_changes[cat][item_key] = new Object();
+		else
+			return null;
+	}
+
+	return g_prop_change[cat][item_key];
+}
+
+function add_prop_change(cat, item_key, prop_key, new_value)
+{
+	var item = get_prop_change_item(cat, item_key, true);
+	item[prop_key] = new_value;
+}
+
+function create_new_item(cat, item_key)
+{
+	var new_item = get_prop_change_item(cat, item_key, true);
+	new_item["name"] = item_key;
+	new_item["_new"] = true;
+}
+
+function delete_item(cat, item_key)
+{
+	var del_item = get_prop_change_item(cat, item_key);
+	if (del_item != null)
+	{
+		del_item["_del"] = true;
+	}
+}
+
+function revert_prop_change(cat, item_key, prop_key)
+{
+	var item = get_prop_change_item(cat, item_key);
+	if (item != null && Object.keys(item).includes(prop_key))
+		g_prop_changes[cat][item_key][prop_key] = null;
+}
+
+function get_prop_change(cat, item_key, prop_key)
+{
+	var item = get_prop_change_item(cat, item_key);
+	if (item != null && Object.keys(item).includes(prop_key))
+		return item[prop_key];
+	return null;
+}
+
+function abandon_prop_changes()
+{
+	g_prop_changes = new Object();
+}
+
+function commit_prop_changes_to_obj(cat, item_key)
+{
+	if (!Object.keys(g_db[cat]).includes(item_key))
+	{
+		g_db[cat][item_key] = new Object();
+	}
+	if (Object.keys(g_prop_changes[cat][item_key]).includes("_del"))
+	{
+		delete g_db[cat][item_key];
+		return;
+	}
+
+	var db_item_key = item_key;
+	Object.keys(g_prop_changes[cat][item_key]).forEach( prop_key => {
+		
+		// Ignore special properties
+		if (prop_key[0] == '_')
+			return;
+
+		if (prop_key === "name")
+		{
+			var old_key = item_key;
+			var new_key = g_prop_changes[cat][item_key][prop_key];
+			if (old_key !== new_key)
+			{
+				// This is a re-name, so we have to remove the old object
+				// and re-add it under the new key.
+				var oldObj = g_db[cat][old_key];
+				delete g_db[cat][old_key];
+				db_item_key = new_key;
+				g_db[cat][new_key] = oldObj;
+			}
+		}
+		g_db[cat][db_item_key][prop_key] = g_prop_changes[cat][item_key][prop_key];
+	});
+}
+
+function commit_prop_changes()
+{
+	Object.keys(g_prop_changes).forEach( cat => {
+		Object.keys(g_prop_changes[cat]).forEach( item_key => {
+				commit_prop_changes_to_obj(cat, item_key);
+		});
+	});
+}
+
+function sort_obj_props(obj)
+{
+	return Object.fromEntries(Object.entries(obj).sort((a, b) => a[0].localeCompare(b[0])));
+}
+
+function obj_to_json(obj)
+{
+	return JSON.stringify(obj, null, "\t");
+}
+
+var g_db = null;
+function get_subjects() { return g_db["subjects"]; }
+function get_artists() { return g_db["artists"]; }
+function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
+function random_prop_value(obj) { return obj[random_entry(Object.keys(obj))]; }
+
+function sort_db()
+{
+	g_db["artists"] = sort_obj_props(g_db["artists"]);
+	g_db["subjects"] = sort_obj_props(g_db["subjects"]);
+}
+
+function random_prompt()
+{
+	return random_prop_value(get_subjects())["name"] + ", by " + random_prop_value(get_artists())["name"];
+}
+
+function obj_prop_count(obj)
+{
+	return Object.keys(obj).length;
+}
+
+function load_json()
+{
+	var json  = $("#json_in").val();
+	g_db = JSON.parse(json);
+	var desc = "JSON Loaded:\n---------\n";
+	var subs = get_subjects();
+	var artists = get_artists();
+	desc += "Subjects: " + obj_prop_count(subs) + " entries.\n";
+	desc += "Artists: " + obj_prop_count(artists) + " entries.\n";
+	desc += random_prompt();
+	desc += "\n---------\n";
+	$("#txt_out").val(desc);
+}
+
+function prop_sort(a, b)
+{
+	if (a == "name")
+		return -1;
+	if (b == "name")
+		return 1;
+
+	return  a.localeCompare(b);
+}
+
+function get_list_obj_from_category(category)
+{		
+	if (category == "artists")
+		return get_artists();
+	else if (category == "subjects")
+		return get_subjects();
+
+	return null;
+}
+
+function get_names_from_category(category, prepost)
+{
+	var rgNames = Object.keys(get_list_obj_from_category(category));
+	var output = "";
+	if (category === "subjects")
+	{
+		rgNames.forEach( item_key => {
+			var obj = g_db["subjects"][item_key];
+			if (Object.keys(obj).includes("prefixes"))
+				output += obj["prefixes"] + " ";
+			output += item_key;
+			if (Object.keys(obj).includes("postfixes"))
+				output += ", " + obj["postfixes"];
+			output += "\n"
+		});
+		return output;
+	}
+	else
+	{
+		return rgNames.join("\n");
+	}
+}
+
+function get_psv(category)
+{
+	if (g_db == null)
+	{
+		report_results(false, "No JSON Loaded!");
+	}
+
+	var list = get_list_obj_from_category(category);
+	var rgCols = get_cols_from_category(category);
+
+	var output = rgCols.join("|") + "\n";
+	Object.keys(list).forEach( key => {
+		var first = true;
+		rgCols.forEach( pKey => {
+			if (first)
+				first = false;
+			else
+				output += "|"
+			if (Object.keys(list[key]).includes(pKey))
+			{
+				output += list[key][pKey];
+			}
+		});
+		output += "\n";
+	});
+
+	$("#tool_out").val(output);
+	report_results(true, "PSV Output!");
+}
+
+function get_cols_from_category(category)
+{
+	list_obj = get_list_obj_from_category(category);
+
+	var cols = new Set();
+	Object.keys(list_obj).forEach( key => {
+		Object.keys(list_obj[key]).forEach( pKey => {
+			cols.add(pKey);
+		});
+	});
+	return Array.from(cols).sort(prop_sort);
+}
+
+
+
+
+document.addEventListener("DOMContentLoaded", function() {
+	
+	// JQuery UI Inits
+	$( function() { $("#tabs").tabs() });
+
+	$("#btn_load_json").click(function() {
+		process_mode = "load";
+		load_json();
+	});
+
+	$("#btn_get_artists_psv").click(function() {
+		process_mode = "tool";
+		get_psv("artists");
+	});
+
+	$("#btn_get_subjects_psv").click(function() {
+		process_mode = "tool";
+		get_psv("subjects");
+	});
+
+	$("#btn_get_subject_names").click(function() {
+		process_mode = "tool";
+		$("#tool_out").val(get_names_from_category("subjects"));
+	});
+
+	$("#btn_get_json").click(function() {
+		process_mode = "tool";
+		sort_db();
+		$("#tool_out").val(obj_to_json(g_db));
+	});
+
+
+	$("#sel_category").change(function() {
+		refresh_edit_tab();
+	});
+
+	$("#sel_item").change(function() {
+		refresh_edit_props();
+	});
+
+
+
+
+
+});
+	</script>
+</body>

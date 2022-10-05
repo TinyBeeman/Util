@@ -4,6 +4,7 @@ import argparse
 from os import getcwd, listdir, mkdir, rename
 from os.path import isfile, join, splitext, join, exists, isdir
 import sys
+import html
 
 supported_exts = [ ".png", ".gif", ".jpg", ".jpeg"]
 
@@ -53,7 +54,7 @@ H3.token {
 .gallery {
 	display: grid;
 	grid-gap: 10px;
-	grid-template-columns: repeat(auto-fit, 186px);
+	grid-template-columns: repeat(auto-fit, 300px);
 
 	max-width: 1000px;
 	margin: 0 auto;
@@ -229,7 +230,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	#html_body += f"<img class=\"lazy\" data-src=\"{token}/{i}\" tabindex=\"0\" />"
 
-	html_body += json_tag_start + json_tag_body + json_tag_end
+	html_body += json_tag_start + html.escape(json_tag_body) + json_tag_end
 
 	html_body += "</div>" # end of root div
 

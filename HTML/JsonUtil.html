@@ -1,0 +1,411 @@
+<head>
+	<title>TinyBeeman Json Utilities</title>
+	<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.13.2/themes/smoothness/jquery-ui.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
+	<style>
+		.txtbox{
+			width: 100%;
+			resize: none;
+		}
+
+		ui-widget input, .ui-widget select, .ui-widget textarea, .ui-widget button {
+			font-size: 0.75em !important;
+			font-weight:normal !important;
+		}
+
+		.in_out_container {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			grid-template-rows: repeat(2, auto);
+		}
+
+		.in_container {
+			grid-column: 1;
+			grid-row: 1;
+		}
+
+		.out_container {
+			grid-column: 2;
+			grid-row: 1;
+		}
+
+		.process_container {
+			grid-row: 2;
+			grid-column: 1;
+			grid-column-end: 3;
+			
+			display: grid;
+		}
+
+		.options_container {
+			grid-row: 1;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.horiz_container {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.success {
+			color: green;
+		}
+
+		.error {
+			color: red;
+		}
+
+	</style>
+
+</head>
+<body>
+	<div class="root">
+		<div id="tabs">
+			<ul class="tabs">
+				<li><a href="#tab_txt_to_json">Text to Json</a></li>
+				<li><a href="#tab_csv_to_json">CSV to Json</a></li>
+				<li><a href="#tab_tok_to_list">Tokenize List</a></li>
+			</ul>
+			<div class="tab" id="tab_txt_to_json" data-tab-name="Text to Json">
+				<div class="in_out_container">
+					<div class="in_container">
+						<textarea
+							id="txt_in"
+							class="txtbox"
+							rows="25"
+							placeholder="list of strings"></textarea>
+					</div>
+					<div class="out_container">
+						<textarea
+							id="txt_out"
+							class="txtbox"
+							rows="25"
+							readonly></textarea>
+					</div>
+					<div class="process_container">
+						<div class="options_container">
+							<div class="horiz_container">
+								<p>What Sort of Json?</p>
+								<input type="radio" name="json_type" id="rad_strings" value="rad_strings" checked/>
+								<label for="rad_strings">An Array of Strings</label>
+								<input type="radio" name="json_type" id="rad_rg_obj" value="rad_rg_obj"/>
+								<label for="rad_rg_obj">An Array of Objects</label>
+								<input type="radio" name="json_type" id="rad_dict_obj" value="rad_dict_obj"/>
+								<label for="rad_dict_obj">A Dictionary of Objects</label>
+							</div>
+							<div class="horiz_container">
+								<button id="btn_txt_to_json">Process</button>
+								<p id="p_txt_results"></p>
+							</div>
+						</div>
+					</div>	
+				</div>
+			</div>
+			<div class="tab" id="tab_csv_to_json" data-tab-name="Json to Json">
+				<div class="in_out_container">
+					<div class="in_container">
+						<textarea
+							id="csv_in"
+							class="txtbox"
+							rows="25"
+							placeholder="list of strings"></textarea>
+					</div>
+					<div class="out_container">
+						<textarea
+							id="csv_out"
+							class="txtbox"
+							rows="25"
+							readonly></textarea>
+					</div>
+				</div>
+				<div class="process_container">
+					<div class="options_container">
+						<div class="horiz_container">
+							<p>Options Here</p>
+							<label for="txt_sep">Separator Character</label>
+							<textarea id="txt_sep" class="txt_separator" rows="1" cols="3">|</textarea>
+							<label for="txt_name_col">Name column</label>
+							<textarea id="txt_name_col" class="txt_name_col" rows="1" cols="24">name</textarea>
+							<input type="radio" name="optionA" id="rad_A1" value="A1" checked/>
+							<label for="rad_A1">Opt 1</label>
+							<input type="radio" name="optionA" id="rad_A2" value="A2" checked/>
+							<label for="rad_A1">Opt 2</label>
+						</div>
+						<div class="horiz_container">
+							<button id="btn_csv_to_json">Process</button>
+							<p id="p_csv_results"></p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="tab" id="tab_tok_to_list" data-tab-name="Json to Json">
+				<div class="in_out_container">
+					<div class="in_container">
+						<textarea
+							id="txt_tok_strings"
+							class="txtbox"
+							rows="12"
+							placeholder="list of strings with token-placeholder"></textarea>
+						<textarea
+							id="txt_tok_tokens"
+							class="txtbox"
+							rows="12"
+							placeholder="list of strings with token-placeholder"></textarea>
+
+					</div>
+					<div class="out_container">
+						<textarea
+							id="tok_out"
+							class="txtbox"
+							rows="25"
+							readonly></textarea>
+					</div>
+				</div>
+				<div class="process_container">
+					<div class="options_container">
+						<div class="horiz_container">
+							<label for="txt_placeholder">Placeholder String</label>
+							<textarea id="txt_placeholder" class="txt_placeholder" rows="1" cols="24">*</textarea>
+							<input type="radio" name="tok_sort" id="rad_gs" value="gs" checked/>
+							<label for="rad_gs">Group like-strings together</label>
+							<input type="radio" name="tok_sort" id="rad_gt" value="gt"/>
+							<label for="rad_ts">Group like-tokens together</label>
+							<input type="radio" name="tok_sort" id="rad_abs" value="abc"/>
+							<label for="rad_as">Alphabetize the final list</label>
+						</div>
+						<div class="horiz_container">
+							<button id="btn_tokenizer">Process</button>
+							<p id="p_tok_results"></p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+
+var process_mode = "";
+
+
+function report_results(success, msg)
+{
+	var p_result = null;
+
+	p_result = $("#p_" + process_mode + "_results");
+
+	p_result.removeClass("success failure");
+	p_result.addClass(success ? "success" : "error");
+	p_result.text(msg);
+}
+
+function report_dups(rgDups)
+{
+	if (rgDups && rgDups.length > 0)
+		report_results(false, "Duplicates Detected: " + rgDups.join(", "));	
+	else
+		report_results(true, "Success! No Duplicates.");
+}
+
+function obj_to_json(obj)
+{
+	return JSON.stringify(obj, null, "\t");
+}
+
+function process_tokenizer()
+{
+	var strings = $("#txt_tok_strings").val();
+	var tokens = $("#txt_tok_tokens").val();
+
+	var rgStrings = strings.split(/\r?\n/).map(str => str.trim()).filter(str => str);
+	var rgTokens = tokens.split(/\r?\n/).map(str => str.trim()).filter(str => str);
+
+	var rgOutput = [];
+
+	var placeholder = $("#txt_placeholder").val().trim();
+	if (placeholder.length <= 0)
+	{
+		placeholder = "*";
+		$("$txt_placeholder").val("*");
+	}
+
+	var sort_type = $('input[name="tok_sort"]:checked').val();
+
+	if (sort_type == "gt")
+	{
+		rgTokens.forEach( tok => {
+			rgStrings.forEach( str => {
+				if (str.indexOf(placeholder) >= 0)
+				{
+					rgOutput.push(str.replaceAll(placeholder, tok));
+				}
+			});
+		});
+	}
+	else
+	{
+		rgStrings.forEach( str => {
+			rgTokens.forEach( tok => {
+				if (str.indexOf(placeholder) >= 0)
+				{
+					rgOutput.push(str.replaceAll(placeholder, tok));
+				}
+			});
+		});
+
+		if (sort_type == "abc")
+			rgOutput = rgOutput.sort();
+	}
+
+	$("#tok_out").val(rgOutput.join("\n"));
+	report_results(true, "Tokenized " + rgOutput.length + " strings.");
+}
+
+
+function process_txt_to_json()
+{
+	var lines = $("#txt_in").val();
+	var rgLines = lines.split(/\r?\n/).map(str => str.trim()).filter(str => str);
+	var rgDuplicates = rgLines.filter((item, index) => rgLines.indexOf(item) != index)
+
+	var json_type = $('input[name="json_type"]:checked').val();
+
+	if (json_type == "rad_strings")
+	{
+		$("#txt_out").val(obj_to_json(rgLines));
+		report_dups(rgDuplicates);
+		return;
+	}
+	else if (json_type == "rad_rg_obj")
+	{
+		var rgObjs = [];
+		rgLines.forEach(line => {
+			rgObjs.push({name: line});
+		});
+		$("#txt_out").val(obj_to_json(rgObjs));
+		report_dups(rgDuplicates);
+		return;
+	}
+	else if (json_type == "rad_dict_obj")
+	{
+		var dictObjs = new Object;
+		rgLines.forEach(line => {
+			dictObjs[line] = {name: line};
+		});
+		$("#txt_out").val(obj_to_json(dictObjs));
+		report_dups(rgDuplicates);
+		return;
+	}
+
+	report_results(false, "Please Select A Valid Json Type");
+}
+
+function process_csv_to_json()
+{
+	var indexName = $("#txt_name_col").val().trim();
+
+	var lines = $("#csv_in").val();
+	var rgLines = lines.split(/\r?\n/).map(str => str.trim()).filter(str => str);
+	if (rgLines.length == 0)
+	{
+		report_results(false, "No text found in csv box");
+		return;
+	}
+	var sep = $("#txt_sep").val().trim();
+	if (sep.length <= 0)
+	{
+		sep = "|";
+		$("$txt_sep").val("|");
+	}
+	var rgCols = rgLines[0].split(sep).map(str => str.trim());
+	
+	nameCol = -1;
+	if (indexName.length > 0)
+		nameCol = rgCols.indexOf(indexName);
+	
+	if (nameCol == -1)
+	{
+		// Build an array of unnamed objects
+		var rgObjs= [];
+		for (var i = 1; i < rgLines.length; i++)
+		{
+			rgVals = rgLines[i].split(sep).map(str => str.trim());
+			var dictObj = new Object;
+			for (var iVal = 0; iVal < rgVals.length; iVal++)
+			{
+				val = rgVals[iVal];
+				if (val.length > 0)
+					dictObj[rgCols[iVal]] = val;
+			}
+			rgObjs.push(dictObj);
+		}
+		$("#csv_out").val(obj_to_json(rgObjs));
+		report_results(true, "Successfully created array of unindexed objects.");
+		return;
+	}
+	else
+	{
+		var dictObjs = new Object();
+		var rgNames = [];
+		for (var i = 1; i < rgLines.length; i++)
+		{
+			rgVals = rgLines[i].split(sep).map(str => str.trim());
+			var dictObj = new Object;
+			for (var iVal = 0; iVal < rgVals.length; iVal++)
+			{
+				val = rgVals[iVal];
+				if (val.length > 0)
+					dictObj[rgCols[iVal]] = val;
+			}
+			dictObjs[rgVals[nameCol]] = dictObj;
+			rgNames.push(rgVals[nameCol]);
+		}
+
+		$("#csv_out").val(obj_to_json(dictObjs));
+		
+		var rgDuplicates = rgNames.filter((item, index) => rgNames.indexOf(item) != index)
+		if (rgDuplicates.length > 0)
+		{
+			report_results(false, "Duplicate Index Values Found: " + rgDuplicates.join(", "));
+			return;
+		}
+		else
+		{
+			report_results(true, "Successfully created dictionary of indexed objects.");
+			return;
+		}
+	}
+
+	report_results(false, "Please Select A Valid Json Type");
+}
+
+
+
+document.addEventListener("DOMContentLoaded", function() {
+	
+	// JQuery UI Inits
+	$( function() { $("#tabs").tabs() });
+
+	$("#btn_txt_to_json").click(function() {
+		process_mode = "txt";
+		process_txt_to_json();
+	});
+
+	$("#btn_csv_to_json").click(function(event, ui) {
+		process_mode = "csv";
+		process_csv_to_json();
+	});
+
+	$("#btn_tokenizer").click(function(event, ui) {
+		process_mode = "tok";
+		process_tokenizer();
+	});
+
+
+});
+	</script>
+</body>

@@ -4,7 +4,7 @@ pip install regex
 
 :launch
 REM This pattern matches this anystring-anystring-token,anystring-anystring
-%PYTHON% sort_files.py --v --pattern "(?:[^_]+_){2}p\((?P<token>[^_,]+)"
+%PYTHON% sort_files.py --v --pattern "(?:[^_]+_){2}p\((?P<token>[^_\|]+)"
 pause
 exit /b
 
