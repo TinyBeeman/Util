@@ -41,7 +41,19 @@ def main():
 <style>
 
 * { box-sizing: border-box; }
-body { background: #eee; }
+body {
+	background: #eee;
+	height: auto;
+	}
+
+div.sticky {
+	position: sticky;
+	top: 0;
+}
+
+.root {
+	height: auto;
+}
 
 .center {
 	text-align: center;	
@@ -50,6 +62,27 @@ body { background: #eee; }
 H3.token {
 	text-align: center;
 }
+
+div#content {
+	display: grid;
+	grid-gap: 5px;
+	grid-template-columns: 100px 1fr;
+	height: auto;
+}
+
+div#index {
+	grid-column: 1;
+}
+
+div#index a {
+	font-size: x-small;
+}
+
+div#gallery_root {
+	grid-column: 2;
+}
+
+
 
 .gallery {
 	display: grid;
@@ -113,9 +146,14 @@ var g_back = false;
 function filter(search_txt) {
 	g_filter = search_txt.toLowerCase().trim();
 	var gallery_root = $("#gallery_root");
+	var index_div = $("#index");
 	gallery_root.empty();
 	var i = 0;
 	for (var token in g_data) {
+		
+		var indexAnchor = $( '<div><a href="./gallery.html?filter=' + encodeURIComponent(token) + '">' + token + '</a></div>');
+		index_div.append(indexAnchor);
+		
 		if (g_filter.length > 0 && !token.toLowerCase().includes(g_filter))
 			continue;
 		if (i < g_start)
@@ -173,7 +211,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		g_start = parseInt(i_start);
 	var str_filter = GetURLParameter("filter");
 	if (str_filter)
-		g_filter = str_filter.trim().toLowerCase();
+		g_filter = decodeURIComponent(str_filter).trim().toLowerCase();
 	
 	var json = $("#img-data").attr("value");
 	g_data = JSON.parse(json);
@@ -195,13 +233,16 @@ document.addEventListener("DOMContentLoaded", function() {
 </html>
 	"""
 	html_body = """<div id="root">
-				  <div class="search_controls center">
-					<div id="back"></div>
-					<input id="search_box" type="text"/><button id="clear_btn">X</button><button id="filter_btn">Filter</button>
-					<div id="forward"></div>
-				  </div>
-				  <div id="gallery_root">
-				  </div>"""
+
+	<div class="search_controls center">
+		<div id="back"></div>
+		<input id="search_box" type="text"/><button id="clear_btn">X</button><button id="filter_btn">Filter</button>
+		<div id="forward"></div>
+	</div>
+	<div id="content">
+		<div id="index"></div>
+		<div id="gallery_root"></div>
+	</div>"""
 
 	json_tag_start = """<data class="json-data" id="img-data" value='""" + "\n{"
 	json_tag_body = ""

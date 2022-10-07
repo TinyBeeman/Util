@@ -2,7 +2,7 @@ if not defined PYTHON (set PYTHON=python)
 
 :launch
 REM This pattern matches this anystring-anystring-token,anystring-anystring
-%PYTHON% generate_gallery.py
+%PYTHON% D:\Apps\util\Util\Python\generate_gallery.py
 pause
 exit /b
 

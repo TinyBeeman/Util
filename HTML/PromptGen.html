@@ -158,7 +158,12 @@
 								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
 								<button id="btn_get_subject_names">Generate Subject Names</button>
 								<button id="btn_get_json">Generate Json from DB</button>
+								<button id="btn_describe_categories">Describe Categories</button>
 								<p id="p_tool_results"></p>
+							</div>
+							<div class="horiz_container">
+								<button id="btn_filter_subject_names">Get Filtered Subject Names</button>
+								<label for="txt_filter">Filter</label><textarea id="txt_filter" rows="1">Actress</textarea>
 							</div>
 						</div>
 					</div>	
@@ -202,14 +207,96 @@
 	</div>
 	<script>
 
-var process_mode = "";
+var g_db = null;
+var g_process_mode = "";
+function get_subjects() { return g_db["subjects"]; }
+function get_artists() { return g_db["artists"]; }
+function get_categories() { return [ "subjects", "artists" ]; }
+function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
+function random_prop_value(obj) { return obj[random_entry(Object.keys(obj))]; }
+
+function prop_sort_name(a, b)
+{
+	return prop_sort_core(a, b, true);
+}
+
+function prop_sort(a, b)
+{
+	return prop_sort_core(a, b, false);
+}
+
+function prop_sort_core(a, b, name_first)
+{
+	if (a === b)
+		return 0;
+
+	if (name_first)
+	{
+		if (a === "name")
+			return -1;
+		if (b === "name")
+			return 1;
+	}
+
+	return  a.localeCompare(b);
+}
+
+function sort_obj_props(obj, name_first = false)
+{
+	return Object.fromEntries(Object.entries(obj).sort((a, b) => prop_sort_core(a[0], b[0], name_first)));
+}
+
+function sort_db()
+{
+	g_db = sort_obj_props(g_db);
+
+	get_categories().forEach( cat => {
+		g_db[cat] = sort_obj_props(g_db[cat]);
+		Object.keys(g_db[cat]).forEach( key => {
+			g_db[cat][key] = sort_obj_props(g_db[cat][key], true /*name_first*/);
+		})
+	});
+}
+
+function sanitize_db()
+{
+	g_db["_desc"] = describe_categories();
+	sort_db();
+}
+
+function get_cols_from_category(category)
+{
+	list_obj = get_list_obj_from_category(category);
+
+	var cols = new Set();
+	Object.keys(list_obj).forEach( key => {
+		Object.keys(list_obj[key]).forEach( pKey => {
+			cols.add(pKey);
+		});
+	});
+	return Array.from(cols).sort(prop_sort_name);
+}
+
+function obj_to_json(obj)
+{
+	return JSON.stringify(obj, null, "\t");
+}
+
+function describe_categories(category)
+{
+	var desc_root = new Object();
+	get_categories().forEach( cat => {
+		desc_root[cat] = get_cols_from_category(cat);
+	});
+	return desc_root;
+}
 
 
 function report_results(success, msg)
 {
 	var p_result = null;
 
-	p_result = $("#p_" + process_mode + "_results");
+	p_result = $("#p_" + g_process_mode + "_results");
 
 	p_result.removeClass("success failure");
 	p_result.addClass(success ? "success" : "error");
@@ -399,27 +486,7 @@ function commit_prop_changes()
 	});
 }
 
-function sort_obj_props(obj)
-{
-	return Object.fromEntries(Object.entries(obj).sort((a, b) => a[0].localeCompare(b[0])));
-}
 
-function obj_to_json(obj)
-{
-	return JSON.stringify(obj, null, "\t");
-}
-
-var g_db = null;
-function get_subjects() { return g_db["subjects"]; }
-function get_artists() { return g_db["artists"]; }
-function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
-function random_prop_value(obj) { return obj[random_entry(Object.keys(obj))]; }
-
-function sort_db()
-{
-	g_db["artists"] = sort_obj_props(g_db["artists"]);
-	g_db["subjects"] = sort_obj_props(g_db["subjects"]);
-}
 
 function random_prompt()
 {
@@ -445,15 +512,6 @@ function load_json()
 	$("#txt_out").val(desc);
 }
 
-function prop_sort(a, b)
-{
-	if (a == "name")
-		return -1;
-	if (b == "name")
-		return 1;
-
-	return  a.localeCompare(b);
-}
 
 function get_list_obj_from_category(category)
 {		
@@ -463,6 +521,38 @@ function get_list_obj_from_category(category)
 		return get_subjects();
 
 	return null;
+}
+
+function get_names_from_category_filter(category, prepost, filter)
+{
+	var rgNames = Object.keys(get_list_obj_from_category(category));
+	var output = "";
+	if (category === "subjects")
+	{
+		rgNames.forEach( item_key => {
+			var obj = g_db["subjects"][item_key];
+			fFilter = true;
+			Object.keys(obj).forEach( key => {
+				if (obj[key].toString().toLowerCase().includes(filter.toLowerCase()))
+					fFilter = false;
+			});
+
+			if (!fFilter)
+			{
+				if (Object.keys(obj).includes("prefixes"))
+					output += obj["prefixes"] + " ";
+				output += item_key;
+				if (Object.keys(obj).includes("postfixes"))
+					output += ", " + obj["postfixes"];
+				output += "\n"
+			}
+		});
+		return output;
+	}
+	else
+	{
+		return rgNames.join("\n");
+	}
 }
 
 function get_names_from_category(category, prepost)
@@ -518,20 +608,6 @@ function get_psv(category)
 	report_results(true, "PSV Output!");
 }
 
-function get_cols_from_category(category)
-{
-	list_obj = get_list_obj_from_category(category);
-
-	var cols = new Set();
-	Object.keys(list_obj).forEach( key => {
-		Object.keys(list_obj[key]).forEach( pKey => {
-			cols.add(pKey);
-		});
-	});
-	return Array.from(cols).sort(prop_sort);
-}
-
-
 
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -540,29 +616,40 @@ document.addEventListener("DOMContentLoaded", function() {
 	$( function() { $("#tabs").tabs() });
 
 	$("#btn_load_json").click(function() {
-		process_mode = "load";
+		g_process_mode = "load";
 		load_json();
 	});
 
 	$("#btn_get_artists_psv").click(function() {
-		process_mode = "tool";
+		g_process_mode = "tool";
 		get_psv("artists");
 	});
 
 	$("#btn_get_subjects_psv").click(function() {
-		process_mode = "tool";
+		g_process_mode = "tool";
 		get_psv("subjects");
 	});
 
 	$("#btn_get_subject_names").click(function() {
-		process_mode = "tool";
-		$("#tool_out").val(get_names_from_category("subjects"));
+		g_process_mode = "tool";
+		$("#tool_out").val(get_names_from_category("subjects", true));
+	});
+
+	$("#btn_filter_subject_names").click(function() {
+		g_process_mode = "tool";
+		$("#tool_out").val(get_names_from_category_filter("subjects", true, $("#txt_filter").val()));
 	});
 
 	$("#btn_get_json").click(function() {
-		process_mode = "tool";
-		sort_db();
+		g_process_mode = "tool";
+		sanitize_db();
 		$("#tool_out").val(obj_to_json(g_db));
+	});
+
+	$("#btn_describe_categories").click(function() {
+		g_process_mode = "tool";
+		cat_desc = describe_categories();
+		$("#tool_out").val(obj_to_json(cat_desc));
 	});
 
 
