@@ -163,7 +163,8 @@
 							</div>
 							<div class="horiz_container">
 								<button id="btn_filter_subject_names">Get Filtered Subject Names</button>
-								<label for="txt_filter">Filter</label><textarea id="txt_filter" rows="1">Actress</textarea>
+								<label for="txt_filter">Filter</label><textarea id="txt_filter" placeholder="filter" rows="1"></textarea>
+								<input type="checkbox" name="favorites" id="cb_favorites" value="favorite"/><label for="cb_favorites">Favorites Only</label>
 							</div>
 						</div>
 					</div>	
@@ -523,28 +524,43 @@ function get_list_obj_from_category(category)
 	return null;
 }
 
-function get_names_from_category_filter(category, prepost, filter)
+function get_decorated_subject_name(obj)
 {
+	output = "";
+	if (Object.keys(obj).includes("prefixes"))
+		output += obj["prefixes"] + " ";
+	output += obj["name"];
+	if (Object.keys(obj).includes("postfixes"))
+		output += ", " + obj["postfixes"];
+	return output;
+}
+
+function get_names_from_category_filter(category, prepost)
+{
+	var filter = $("#txt_filter").val();
+	var fav_only = $("#cb_favorites").is(':checked');
 	var rgNames = Object.keys(get_list_obj_from_category(category));
 	var output = "";
 	if (category === "subjects")
 	{
 		rgNames.forEach( item_key => {
 			var obj = g_db["subjects"][item_key];
-			fFilter = true;
-			Object.keys(obj).forEach( key => {
-				if (obj[key].toString().toLowerCase().includes(filter.toLowerCase()))
-					fFilter = false;
-			});
 
-			if (!fFilter)
+			var fAllow = true;
+			if (filter != null && filter.length > 0)
 			{
-				if (Object.keys(obj).includes("prefixes"))
-					output += obj["prefixes"] + " ";
-				output += item_key;
-				if (Object.keys(obj).includes("postfixes"))
-					output += ", " + obj["postfixes"];
-				output += "\n"
+				fAllow = Object.keys(obj).filter( key => obj[key].toString().toLowerCase().includes(filter.toLowerCase()) ).length > 0
+			}
+
+			if (fAllow && fav_only && (!Object.keys(obj).includes("favorite") || obj["favorite"] == 0))
+			{
+				fAllow = false;
+				return;
+			}
+
+			if (fAllow)
+			{
+				output += get_decorated_subject_name(obj) + "\n";
 			}
 		});
 		return output;
@@ -637,7 +653,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	$("#btn_filter_subject_names").click(function() {
 		g_process_mode = "tool";
-		$("#tool_out").val(get_names_from_category_filter("subjects", true, $("#txt_filter").val()));
+		$("#tool_out").val(get_names_from_category_filter("subjects", true));
 	});
 
 	$("#btn_get_json").click(function() {
