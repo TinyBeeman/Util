@@ -43,7 +43,7 @@
 			flex-direction: column;
 		}
 
-		.horiz_container {
+		.row {
 			display: flex;
 			flex-direction: row;
 			align-items: center;
@@ -126,7 +126,7 @@
 					</div>
 					<div class="process_container">
 						<div class="options_container">
-							<div class="horiz_container">
+							<div class="row">
 								<button id="btn_load_json">Load Prompts</button>
 								<p id="p_load_results"></p>
 							</div>
@@ -153,7 +153,7 @@
 					</div>
 					<div class="process_container">
 						<div class="options_container">
-							<div class="horiz_container">
+							<div class="row">
 								<button id="btn_get_artists_psv">Generate Artists PSV</button>
 								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
 								<button id="btn_get_subject_names">Generate Subject Names</button>
@@ -161,10 +161,15 @@
 								<button id="btn_describe_categories">Describe Categories</button>
 								<p id="p_tool_results"></p>
 							</div>
-							<div class="horiz_container">
+							<div class="row">
 								<button id="btn_filter_subject_names">Get Filtered Subject Names</button>
 								<label for="txt_filter">Filter</label><textarea id="txt_filter" placeholder="filter" rows="1"></textarea>
 								<input type="checkbox" name="favorites" id="cb_favorites" value="favorite"/><label for="cb_favorites">Favorites Only</label>
+							</div>
+							<div class="row">
+								<button id="btn_random_prompts">Add Random Prompts</button>
+								<input id="random_prompt_postfix" type="text" placeholder="Add extra prompt text here" />
+								<input id="prompt_count" type="range" value="10" min="1" max="1000" step="10" />
 							</div>
 						</div>
 					</div>	
@@ -193,7 +198,7 @@
 					</div>
 					<!--<div class="process_container">
 						<div class="options_container">
-							<div class="horiz_container">
+							<div class="row">
 								<button id="btn_get_artists_psv">Generate Artists PSV</button>
 								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
 								<p id="p_tool_results"></p>
@@ -247,6 +252,30 @@ function sort_obj_props(obj, name_first = false)
 	return Object.fromEntries(Object.entries(obj).sort((a, b) => prop_sort_core(a[0], b[0], name_first)));
 }
 
+function arrayify(val)
+{
+	if (Array.isArray(val))
+		return val;
+
+	if ($.type(val) === "string")
+	{
+		return val.split(',').map(element => element.trim());
+	}
+
+	return [ val ]
+}
+
+function sanitize_obj_props(obj)
+{
+	obj = sort_obj_props(obj, true);
+	if (Object.keys(obj).includes("tags"))
+		obj["tags"] = arrayify(obj["tags"]);
+	if (Object.keys(obj).includes("ethnicity"))
+		obj["ethnicity"] = arrayify(obj["ethnicity"]);
+	
+	return obj;
+}
+
 function sort_db()
 {
 	g_db = sort_obj_props(g_db);
@@ -254,7 +283,7 @@ function sort_db()
 	get_categories().forEach( cat => {
 		g_db[cat] = sort_obj_props(g_db[cat]);
 		Object.keys(g_db[cat]).forEach( key => {
-			g_db[cat][key] = sort_obj_props(g_db[cat][key], true /*name_first*/);
+			g_db[cat][key] = sanitize_obj_props(g_db[cat][key]);
 		})
 	});
 }
@@ -529,7 +558,12 @@ function get_decorated_subject_name(obj)
 	output = "";
 	if (Object.keys(obj).includes("prefixes"))
 		output += obj["prefixes"] + " ";
-	output += obj["name"];
+	
+	wrap_brackets = 0;
+	if (Object.keys(obj).includes("exaggerated"))
+		wrap_brackets = parseInt(obj["exaggerated"]);
+
+	output += "[".repeat(wrap_brackets) + obj["name"] + "]".repeat(wrap_brackets);
 	if (Object.keys(obj).includes("postfixes"))
 		output += ", " + obj["postfixes"];
 	return output;
@@ -654,6 +688,19 @@ document.addEventListener("DOMContentLoaded", function() {
 	$("#btn_filter_subject_names").click(function() {
 		g_process_mode = "tool";
 		$("#tool_out").val(get_names_from_category_filter("subjects", true));
+	});
+
+	$("#btn_random_prompts").click(function() {
+		g_process_mode = "tool";
+		cp = parseInt($("#prompt_count").val());
+		extra = $("#random_prompt_postfix").val().trim();
+		if (extra.length > 0)
+			extra = ", " + extra;
+		prompts = Array.from({length: cp}, () => random_prompt() + extra);
+		out = $("#tool_out").val();
+		if (out.length > 0 && !out.endsWith("\n"))
+			out += "\n";
+		$("#tool_out").val(out + prompts.join("\n") + "\n");
 	});
 
 	$("#btn_get_json").click(function() {
