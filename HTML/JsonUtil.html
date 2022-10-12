@@ -4,8 +4,16 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
 	<style>
+
+		* {
+			font-size: 0.95em;
+		}
+
 		.txtbox{
 			width: 100%;
+		}
+
+		textarea {
 			resize: none;
 		}
 
@@ -171,12 +179,15 @@
 						<div class="horiz_container">
 							<label for="txt_placeholder">Placeholder String</label>
 							<textarea id="txt_placeholder" class="txt_placeholder" rows="1" cols="24">*</textarea>
+							<label>Sort:</label>
 							<input type="radio" name="tok_sort" id="rad_gs" value="gs" checked/>
-							<label for="rad_gs">Group like-strings together</label>
+							<label for="rad_gs">String</label>
 							<input type="radio" name="tok_sort" id="rad_gt" value="gt"/>
-							<label for="rad_ts">Group like-tokens together</label>
+							<label for="rad_ts">Token</label>
 							<input type="radio" name="tok_sort" id="rad_abs" value="abc"/>
-							<label for="rad_as">Alphabetize the final list</label>
+							<label for="rad_as">ABC</label>
+							<input type="radio" name="tok_sort" id="rad_rnd" value="rnd"/>
+							<label for="rad_rnd">Rnd</label>
 						</div>
 						<div class="horiz_container">
 							<button id="btn_tokenizer">Process</button>
@@ -259,6 +270,8 @@ function process_tokenizer()
 
 		if (sort_type == "abc")
 			rgOutput = rgOutput.sort();
+		else if (sort_type == "rnd")
+			rgOutput = rgOutput.sort(function(){return 0.5 - Math.random()});
 	}
 
 	$("#tok_out").val(rgOutput.join("\n"));
