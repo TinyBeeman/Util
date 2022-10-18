@@ -300,13 +300,19 @@ function get_cols_from_category(category)
 {
 	list_obj = get_list_obj_from_category(category);
 
-	var cols = new Set();
+	var cols = {};
 	Object.keys(list_obj).forEach( key => {
 		Object.keys(list_obj[key]).forEach( pKey => {
-			cols.add(pKey);
+			if (!Object.keys(cols).includes(pKey))
+			{
+				if (Array.isArray(list_obj[key][pKey]))
+					cols[pKey] = "array"
+				else
+					cols[pKey] = "string";
+			}
 		});
 	});
-	return Array.from(cols).sort(prop_sort_name);
+	return sort_obj_props(cols, true);
 }
 
 function obj_to_json(obj)
@@ -386,7 +392,7 @@ function refresh_edit_props()
 			var i = 0;
 			props = get_cols_from_category(get_sel_cat());
 			
-			props.forEach( prop_key => {
+			Object.keys(props).forEach( prop_key => {
 				var change_val = get_prop_change( get_sel_cat(), sel_key, prop_key );
 				var val = (change_val == null) ? get_prop_val_from_obj(sel_obj, prop_key) : change_val;
 				var changed_class = (change_val == null) ? '' : ' prop_changed';
@@ -659,20 +665,24 @@ function get_psv(category)
 		report_results(false, "No JSON Loaded!");
 	}
 
-	var list = get_list_obj_from_category(category);
-	var rgCols = get_cols_from_category(category);
+	var rgRecords = get_list_obj_from_category(category);
+	var dictCols = get_cols_from_category(category);
 
-	var output = rgCols.join("|") + "\n";
-	Object.keys(list).forEach( key => {
+	var output = Object.keys(dictCols).join("|") + "\n";
+	Object.keys(rgRecords).forEach( recordKey => {
 		var first = true;
-		rgCols.forEach( pKey => {
+		Object.entries(dictCols).forEach( entry => {
+			const [colName, colType] = entry;
 			if (first)
 				first = false;
 			else
 				output += "|"
-			if (Object.keys(list[key]).includes(pKey))
+			if (Object.keys(rgRecords[recordKey]).includes(colName))
 			{
-				output += list[key][pKey];
+				if (colType == "array")
+					output += rgRecords[recordKey][colName].join(";");
+				else
+					output += rgRecords[recordKey][colName];
 			}
 		});
 		output += "\n";
