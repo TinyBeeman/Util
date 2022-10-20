@@ -309,9 +309,56 @@ class PromptDatabase
 		});
 	}
 
+	ensure_style_prompts()
+	{
+		var found_cats = {};
+		Object.keys(this.styles).forEach( style_key => {
+			var style_record = this.styles[style_key];
+			var cat_key = get_prop_val_from_obj(style_record, "category", null);
+			if (cat_key == null)
+				return;
+
+			if (!Object.keys(found_cats).includes(cat_key))
+			{
+				found_cats[cat_key] = new Object();
+				found_cats[cat_key].name = cat_key;
+				found_cats[cat_key].subcats = [];
+			}
+
+			var sub_cat_key = get_prop_val_from_obj(style_record, "sub-category", null);
+			if (sub_cat_key != null)
+			{
+				if (!found_cats[cat_key].subcats.includes(sub_cat_key))
+					found_cats[cat_key].subcats.push(sub_cat_key);
+			}
+		});
+
+		Object.keys(found_cats).forEach( cat_key => {
+			if (!Object.keys(this.style_prompts).includes(cat_key))
+			{
+				this.style_prompts[cat_key] = new Object();
+				this.style_prompts[cat_key]["name"] = cat_key;
+				this.style_prompts[cat_key]["default-prompt"] = "TODO *";
+			}
+
+			found_cats[cat_key].subcats.forEach( sub_key => {
+				if (!Object.keys(this.style_prompts[cat_key]).includes("sub-categories"))
+					this.style_prompts[cat_key]["sub-categories"] = new Object();
+				
+				if (!Object.keys(this.style_prompts[cat_key]["sub-categories"]).includes(sub_key))
+				{
+					this.style_prompts[cat_key]["sub-categories"][sub_key] = new Object();
+					this.style_prompts[cat_key]["sub-categories"][sub_key]["name"] = sub_key;
+					this.style_prompts[cat_key]["sub-categories"][sub_key]["default-prompt"] = "TODO *";
+				}
+			});
+		});
+	}
+
 	sanitize_db()
 	{
 		this.generate_desc();
+		this.ensure_style_prompts();
 		this.sort_db();
 	}
 
