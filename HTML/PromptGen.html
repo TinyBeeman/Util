@@ -216,7 +216,8 @@
 
 function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
 function random_object_property_value(obj) { return obj[random_entry(Object.keys(obj))]; }
-function get_prop_val_from_obj(obj, prop, default_val = "")
+function random_object_key(obj) { return random_entry(Object.keys(obj)); }
+function get_opv(obj, prop, default_val = "")
 {
 	if (Object.keys(obj).includes(prop))
 		return obj[prop];
@@ -280,7 +281,7 @@ class PromptDatabase
 		this.m_source = json_obj;
 	}
 
-	get_category_records(category) { return get_prop_val_from_obj(this.m_source, category, null);	}
+	get_category_records(category) { return get_opv(this.m_source, category, null);	}
 	get categories() { return [ "subjects", "style_prompts", "styles" ]}
 	get subjects() { return this.get_category_records("subjects"); }
 	get styles() { return this.get_category_records("styles"); }
@@ -309,47 +310,85 @@ class PromptDatabase
 		});
 	}
 
+	get_prompts_from_style_prompt(cat, subcat)
+	{
+		var prompt_record = get_opv(this.style_prompts, cat, null);
+		if (prompt_record == null)
+			return [];
+		
+		if (subcat.length == 0)
+			return [prompt_record.default_prompt];
+		
+		var subcats = get_opv(prompt_record, "subcategories", null);
+		if (subcats == null || !(subcat in subcats))
+		{
+			report_results("Unknown subcategory: " + subcat);
+			return [prompt_record.default_prompt];
+		}
+
+		return [subcats[subcat].default_prompt];
+	}
+
+	get_prompts_from_style(style_tag)
+	{
+		var style_record = get_opv(this.styles, style_tag, null);
+		if (style_record == null)
+		{
+			report_results("Unknown style tag: " + style_tag);
+			return style_tag;
+		}
+
+		var name = style_record.name; // DO NOT USE KEY, WHICH MAY BE TOO SPECIFIC
+		var prompts = get_opv(style_record, "override_prompts", []);
+		if (prompts.length == 0)
+		{
+			prompts = this.get_prompts_from_style_prompt(style_record.category, get_opv(style_record, "subcategory", ""));
+		}
+
+		return prompts.map( str => str.replace("*", name));
+	}
+
 	ensure_style_prompts()
 	{
 		var found_cats = {};
 		Object.keys(this.styles).forEach( style_key => {
 			var style_record = this.styles[style_key];
-			var cat_key = get_prop_val_from_obj(style_record, "category", null);
+			var cat_key = get_opv(style_record, "category", null);
 			if (cat_key == null)
 				return;
 
-			if (!Object.keys(found_cats).includes(cat_key))
+			if (!(cat_key in found_cats))
 			{
 				found_cats[cat_key] = new Object();
 				found_cats[cat_key].name = cat_key;
 				found_cats[cat_key].subcats = [];
 			}
 
-			var sub_cat_key = get_prop_val_from_obj(style_record, "sub-category", null);
-			if (sub_cat_key != null)
+			var subcat_key = get_opv(style_record, "subcategory", null);
+			if (subcat_key != null)
 			{
-				if (!found_cats[cat_key].subcats.includes(sub_cat_key))
-					found_cats[cat_key].subcats.push(sub_cat_key);
+				if (!found_cats[cat_key].subcats.includes(subcat_key))
+					found_cats[cat_key].subcats.push(subcat_key);
 			}
 		});
 
 		Object.keys(found_cats).forEach( cat_key => {
-			if (!Object.keys(this.style_prompts).includes(cat_key))
+			if (!(cat_key in this.style_prompts))
 			{
 				this.style_prompts[cat_key] = new Object();
 				this.style_prompts[cat_key]["name"] = cat_key;
-				this.style_prompts[cat_key]["default-prompt"] = "TODO *";
+				this.style_prompts[cat_key]["default_prompt"] = "TODO *";
 			}
 
 			found_cats[cat_key].subcats.forEach( sub_key => {
-				if (!Object.keys(this.style_prompts[cat_key]).includes("sub-categories"))
-					this.style_prompts[cat_key]["sub-categories"] = new Object();
+				if (!("subcategories" in this.style_prompts[cat_key]))
+					this.style_prompts[cat_key]["subcategories"] = new Object();
 				
-				if (!Object.keys(this.style_prompts[cat_key]["sub-categories"]).includes(sub_key))
+				if (!(sub_key in this.style_prompts[cat_key]["subcategories"]))
 				{
-					this.style_prompts[cat_key]["sub-categories"][sub_key] = new Object();
-					this.style_prompts[cat_key]["sub-categories"][sub_key]["name"] = sub_key;
-					this.style_prompts[cat_key]["sub-categories"][sub_key]["default-prompt"] = "TODO *";
+					this.style_prompts[cat_key]["subcategories"][sub_key] = new Object();
+					this.style_prompts[cat_key]["subcategories"][sub_key]["name"] = sub_key;
+					this.style_prompts[cat_key]["subcategories"][sub_key]["default_prompt"] = "TODO *";
 				}
 			});
 		});
@@ -369,7 +408,7 @@ class PromptDatabase
 		var cols = {};
 		Object.keys(cat_records).forEach( key => {
 			Object.keys(cat_records[key]).forEach( pKey => {
-				if (!Object.keys(cols).includes(pKey))
+				if (!(pKey in cols))
 				{
 					var val = cat_records[key][pKey];
 					if (Array.isArray(val))
@@ -396,7 +435,7 @@ class PromptDatabase
 
 	get_subject_record(name)
 	{
-		return get_prop_val_from_obj(this.subjects, name, null);
+		return get_opv(this.subjects, name, null);
 	}
 
 	decorate_subject_name_from_record(subject_record)
@@ -447,7 +486,8 @@ class PromptDatabase
 
 	random_prompt(fav_only)
 	{
-		return this.decorate_subject_name(this.random_subject(fav_only)) + ", by " + random_object_property_value(this.styles)["name"];
+		var style_prompts = this.get_prompts_from_style(random_object_key(this.styles));
+		return this.decorate_subject_name(this.random_subject(fav_only)) + ", " + random_entry(style_prompts);
 	}
 };
 
@@ -516,7 +556,7 @@ function refresh_edit_props()
 			
 			Object.keys(props).forEach( prop_key => {
 				var change_val = get_prop_change( get_sel_cat(), sel_key, prop_key );
-				var val = (change_val == null) ? get_prop_val_from_obj(sel_obj, prop_key) : change_val;
+				var val = (change_val == null) ? get_opv(sel_obj, prop_key) : change_val;
 				if (Array.isArray(val))
 					val = val.join("; ");
 				var changed_class = (change_val == null) ? '' : ' prop_changed';
