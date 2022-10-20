@@ -154,11 +154,10 @@
 					<div class="process_container">
 						<div class="options_container">
 							<div class="row">
-								<button id="btn_get_artists_psv">Generate Artists PSV</button>
+								<button id="btn_get_styles_psv">Generate Styles PSV</button>
 								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
 								<button id="btn_get_subject_names">Generate Subject Names</button>
 								<button id="btn_get_json">Generate Json from DB</button>
-								<button id="btn_describe_categories">Describe Categories</button>
 								<button id="btn_clear_tool_outout">Clear Output</button>
 								<p id="p_tool_results"></p>
 							</div>
@@ -183,7 +182,7 @@
 					<div class="list_container">
 						<select name="categories" id="sel_category">
 							<option disable selected value>select a category</option>
-							<option value="artists">artists</option>
+							<option value="styles">styles</option>
 							<option value="subjects">subjects</option>
 						</select>
 						<select id="sel_item" name="list_items" size="20">
@@ -201,7 +200,7 @@
 					<!--<div class="process_container">
 						<div class="options_container">
 							<div class="row">
-								<button id="btn_get_artists_psv">Generate Artists PSV</button>
+								<button id="btn_get_styles_psv">Generate styles PSV</button>
 								<button id="btn_get_subjects_psv">Generate Subjects PSV</button>
 								<p id="p_tool_results"></p>
 							</div>
@@ -215,25 +214,18 @@
 	</div>
 	<script>
 
-var g_db = null;
-var g_process_mode = "";
-function get_subjects() { return g_db["subjects"]; }
-function get_artists() { return g_db["artists"]; }
-function get_categories() { return [ "subjects", "artists" ]; }
 function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
-function random_prop_value(obj) { return obj[random_entry(Object.keys(obj))]; }
-
-function prop_sort_name(a, b)
+function random_object_property_value(obj) { return obj[random_entry(Object.keys(obj))]; }
+function get_prop_val_from_obj(obj, prop, default_val = "")
 {
-	return prop_sort_core(a, b, true);
+	if (Object.keys(obj).includes(prop))
+		return obj[prop];
+	
+	return default_val;
 }
 
-function prop_sort(a, b)
-{
-	return prop_sort_core(a, b, false);
-}
 
-function prop_sort_core(a, b, name_first)
+function property_compare(a, b, name_first)
 {
 	if (a === b)
 		return 0;
@@ -251,7 +243,7 @@ function prop_sort_core(a, b, name_first)
 
 function sort_obj_props(obj, name_first = false)
 {
-	return Object.fromEntries(Object.entries(obj).sort((a, b) => prop_sort_core(a[0], b[0], name_first)));
+	return Object.fromEntries(Object.entries(obj).sort((a, b) => property_compare(a[0], b[0], name_first)));
 }
 
 function arrayify(val)
@@ -261,7 +253,7 @@ function arrayify(val)
 
 	if ($.type(val) === "string")
 	{
-		return val.split(',').map(element => element.trim());
+		return val.split(';').map(element => element.trim());
 	}
 
 	return [ val ]
@@ -270,6 +262,8 @@ function arrayify(val)
 function sanitize_obj_props(obj)
 {
 	obj = sort_obj_props(obj, true);
+
+	// Needed anymore? This was to convert the old DB.
 	if (Object.keys(obj).includes("tags"))
 		obj["tags"] = arrayify(obj["tags"]);
 	if (Object.keys(obj).includes("ethnicity"))
@@ -278,57 +272,145 @@ function sanitize_obj_props(obj)
 	return obj;
 }
 
-function sort_db()
+
+class PromptDatabase
 {
-	g_db = sort_obj_props(g_db);
+	constructor(json_obj)
+	{
+		this.m_source = json_obj;
+	}
 
-	get_categories().forEach( cat => {
-		g_db[cat] = sort_obj_props(g_db[cat]);
-		Object.keys(g_db[cat]).forEach( key => {
-			g_db[cat][key] = sanitize_obj_props(g_db[cat][key]);
-		})
-	});
-}
+	get_category_records(category) { return get_prop_val_from_obj(this.m_source, category, null);	}
+	get categories() { return [ "subjects", "style_prompts", "styles" ]}
+	get subjects() { return this.get_category_records("subjects"); }
+	get styles() { return this.get_category_records("styles"); }
+	get style_prompts() { return this.get_category_records("style_prompts")}
+	get desc() { return this.m_source["_desc"]}
 
-function sanitize_db()
-{
-	g_db["_desc"] = describe_categories();
-	sort_db();
-}
+	get json() { return JSON.stringify(this.m_source, null, "\t");}
 
-function get_cols_from_category(category)
-{
-	list_obj = get_list_obj_from_category(category);
-
-	var cols = {};
-	Object.keys(list_obj).forEach( key => {
-		Object.keys(list_obj[key]).forEach( pKey => {
-			if (!Object.keys(cols).includes(pKey))
-			{
-				if (Array.isArray(list_obj[key][pKey]))
-					cols[pKey] = "array"
-				else
-					cols[pKey] = "string";
-			}
+	generate_desc()
+	{
+		this.m_source["_desc"] = new Object();
+		this.categories.forEach( cat => {
+			this.m_source["_desc"][cat] = this.generate_cols_from_category(cat);
 		});
-	});
-	return sort_obj_props(cols, true);
-}
+	}
+
+	sort_db()
+	{
+		this.m_source = sort_obj_props(this.m_source);
+
+		this.categories.forEach( cat => {
+			this.m_source[cat] = sort_obj_props(this.m_source[cat]);
+			Object.keys(this.m_source[cat]).forEach( key => {
+				this.m_source[cat][key] = sanitize_obj_props(this.m_source[cat][key]);
+			})
+		});
+	}
+
+	sanitize_db()
+	{
+		this.generate_desc();
+		this.sort_db();
+	}
+
+	generate_cols_from_category(category)
+	{
+		var cat_records = this.get_category_records(category);
+
+		var cols = {};
+		Object.keys(cat_records).forEach( key => {
+			Object.keys(cat_records[key]).forEach( pKey => {
+				if (!Object.keys(cols).includes(pKey))
+				{
+					var val = cat_records[key][pKey];
+					if (Array.isArray(val))
+						cols[pKey] = "array";
+					else if (val.constructor == Object)
+						cols[pKey] = "dict";
+					else if (typeof val === 'string')
+						cols[pKey] = "string";
+					else
+						cols[pKey] = "unknown";
+				}
+			});
+		});
+		return sort_obj_props(cols, true);
+	}
+
+	get_all_subject_names(fav_only)
+	{
+		var raw_names = Object.keys(this.subjects);
+		if (fav_only)
+			raw_names = raw_names.filter( name => Object.keys(this.subjects[name]).includes("favorite") && this.subjects[name].favorite == 1);
+		return raw_names;
+	}
+
+	get_subject_record(name)
+	{
+		return get_prop_val_from_obj(this.subjects, name, null);
+	}
+
+	decorate_subject_name_from_record(subject_record)
+	{
+		var output = "";
+		if (Object.keys(subject_record).includes("prefixes"))
+			output += subject_record["prefixes"] + " ";
+		
+		var wrap_brackets = 0;
+		if (Object.keys(subject_record).includes("exaggerated"))
+			wrap_brackets = parseInt(subject_record["exaggerated"]);
+
+		output += "[".repeat(wrap_brackets) + subject_record["name"] + "]".repeat(wrap_brackets);
+		if (Object.keys(subject_record).includes("postfixes"))
+			output += ", " + subject_record["postfixes"];
+		return output;
+	}
+
+
+	decorate_subject_name(name)
+	{
+		return this.decorate_subject_name_from_record(this.get_subject_record(name));
+	}
+
+	get_record_names_from_category(category, decorate = false)
+	{
+		var rgNames = Object.keys(this.get_category_records(category));
+		var output = "";
+		if (category === "subjects" && decorate)
+		{
+			rgNames.forEach( subject_key => {
+				var subject_record = this.subjects[subject_key];
+				output += this.decorate_subject_name_from_record(subject_record);
+				output += "\n"
+			});
+			return output;
+		}
+		else
+		{
+			return rgNames.join("\n");
+		}
+	}
+
+	random_subject(fav_only)
+	{
+		return random_entry(this.get_all_subject_names(fav_only));
+	}
+
+	random_prompt(fav_only)
+	{
+		return this.decorate_subject_name(this.random_subject(fav_only)) + ", by " + random_object_property_value(this.styles)["name"];
+	}
+};
+
+var g_database = null;
+var g_process_mode = "";
 
 function obj_to_json(obj)
 {
 	return JSON.stringify(obj, null, "\t");
 }
-
-function describe_categories(category)
-{
-	var desc_root = new Object();
-	get_categories().forEach( cat => {
-		desc_root[cat] = get_cols_from_category(cat);
-	});
-	return desc_root;
-}
-
 
 function report_results(success, msg)
 {
@@ -342,7 +424,7 @@ function report_results(success, msg)
 }
 
 function get_sel_cat() { return $("#sel_category option").filter(":selected").val(); }
-function get_sel_cat_list_obj() { return get_list_obj_from_category(get_sel_cat()); }
+function get_sel_cat_list() { return g_database.get_category_records(get_sel_cat()); }
 
 function refresh_edit_tab()
 {
@@ -350,24 +432,17 @@ function refresh_edit_tab()
 	$("#sel_item").empty();
 	$("#props").empty();
 
-	var list_obj = get_list_obj_from_category(sel_cat);
-	if (list_obj == null)
+	var cat_records = g_database.get_category_records(sel_cat);
+	if (cat_records == null)
 		return;
 	
 	var item_list = $("#sel_item");
-	// item_list.attr("size", obj_prop_count(list_obj));
-	Object.keys(list_obj).forEach( key => {
+	// item_list.attr("size", obj_prop_count(cat_records));
+	Object.keys(cat_records).forEach( key => {
 		item_list.append($( '<option value="' + key + '">' + key + '</option>' ));
 	});
 }
 
-function get_prop_val_from_obj(obj, prop)
-{
-	if (Object.keys(obj).includes(prop))
-		return obj[prop];
-	
-	return "";
-}
 
 function get_sel_key()
 {
@@ -382,19 +457,21 @@ function refresh_edit_props()
 	var sel_key = $("#sel_item option").filter(":selected").val();
 	if (sel_key != null && sel_key.length > 0)
 	{
-		list_obj = get_sel_cat_list_obj();
-		if (list_obj == null)
+		cat_records = get_sel_cat_list();
+		if (cat_records == null)
 			return;
 
-		sel_obj = list_obj[sel_key];
+		sel_obj = cat_records[sel_key];
 		if (sel_obj != null)
 		{
 			var i = 0;
-			props = get_cols_from_category(get_sel_cat());
+			props = g_database.generate_cols_from_category(get_sel_cat());
 			
 			Object.keys(props).forEach( prop_key => {
 				var change_val = get_prop_change( get_sel_cat(), sel_key, prop_key );
 				var val = (change_val == null) ? get_prop_val_from_obj(sel_obj, prop_key) : change_val;
+				if (Array.isArray(val))
+					val = val.join("; ");
 				var changed_class = (change_val == null) ? '' : ' prop_changed';
 				props_div.append( $( '<div class="prop_row"><label class="prop_label' + changed_class + '" for="txt_prop_' + i + '">' + prop_key + '</label><textarea class="txt_prop' + changed_class + '" id="txt_prop_' + i + '" data-prop="' + prop_key + '" rows="1">' + val + '</textarea></div>') );
 			});
@@ -480,13 +557,15 @@ function abandon_prop_changes()
 
 function commit_prop_changes_to_obj(cat, item_key)
 {
-	if (!Object.keys(g_db[cat]).includes(item_key))
+	var cat_list = g_database.get_category_records(cat);
+
+	if (!Object.keys(cat_list).includes(item_key))
 	{
-		g_db[cat][item_key] = new Object();
+		cat_list[item_key] = new Object();
 	}
 	if (Object.keys(g_prop_changes[cat][item_key]).includes("_del"))
 	{
-		delete g_db[cat][item_key];
+		delete cat_list[item_key];
 		return;
 	}
 
@@ -505,13 +584,13 @@ function commit_prop_changes_to_obj(cat, item_key)
 			{
 				// This is a re-name, so we have to remove the old object
 				// and re-add it under the new key.
-				var oldObj = g_db[cat][old_key];
-				delete g_db[cat][old_key];
+				var oldObj = cat_list[old_key];
+				delete cat_list[old_key];
 				db_item_key = new_key;
-				g_db[cat][new_key] = oldObj;
+				cat_list[new_key] = oldObj;
 			}
 		}
-		g_db[cat][db_item_key][prop_key] = g_prop_changes[cat][item_key][prop_key];
+		cat_list[db_item_key][prop_key] = g_prop_changes[cat][item_key][prop_key];
 	});
 }
 
@@ -524,24 +603,6 @@ function commit_prop_changes()
 	});
 }
 
-function get_all_subject_names(fav_only)
-{
-	raw_names = Object.keys(g_db["subjects"]);
-	if (fav_only)
-		raw_names = raw_names.filter( name => Object.keys(g_db.subjects[name]).includes("favorite") && g_db.subjects[name].favorite == 1);
-	return raw_names;
-}
-
-
-function random_subject(fav_only)
-{
-	return random_entry(get_all_subject_names(fav_only));
-}
-
-function random_prompt(fav_only)
-{
-	return decorate_subject_name(random_subject(fav_only)) + ", by " + random_prop_value(get_artists())["name"];
-}
 
 function obj_prop_count(obj)
 {
@@ -551,72 +612,34 @@ function obj_prop_count(obj)
 function load_json()
 {
 	var json  = $("#json_in").val();
-	g_db = JSON.parse(json);
+	g_database = new PromptDatabase(JSON.parse(json));
 	var desc = "JSON Loaded:\n---------\n";
-	var subs = get_subjects();
-	var artists = get_artists();
-	desc += "Subjects: " + obj_prop_count(subs) + " entries.\n";
-	desc += "Artists: " + obj_prop_count(artists) + " entries.\n";
-	desc += random_prompt(false);
+	desc += "Subjects: " + obj_prop_count(g_database.subjects) + " entries.\n";
+	desc += "Styles: " + obj_prop_count(g_database.styles) + " entries.\n";
+	desc += g_database.random_prompt(false);
 	desc += "\n---------\n";
 	$("#txt_out").val(desc);
 }
 
 
-function get_list_obj_from_category(category)
-{		
-	if (category == "artists")
-		return get_artists();
-	else if (category == "subjects")
-		return get_subjects();
-
-	return null;
-}
-
-function get_subject_obj(name)
-{
-	return Object.keys(g_db.subjects).includes(name) ? g_db.subjects[name] : null;
-}
-
-function decorate_subject_name(name)
-{
-	return decorate_subject_name_from_obj(get_subject_obj(name));
-}
-
-function decorate_subject_name_from_obj(obj)
-{
-	output = "";
-	if (Object.keys(obj).includes("prefixes"))
-		output += obj["prefixes"] + " ";
-	
-	wrap_brackets = 0;
-	if (Object.keys(obj).includes("exaggerated"))
-		wrap_brackets = parseInt(obj["exaggerated"]);
-
-	output += "[".repeat(wrap_brackets) + obj["name"] + "]".repeat(wrap_brackets);
-	if (Object.keys(obj).includes("postfixes"))
-		output += ", " + obj["postfixes"];
-	return output;
-}
-
-function get_names_from_category_filter(category, prepost)
+function get_record_names_from_category_filter(category, decorate)
 {
 	var filter = $("#txt_filter").val();
 	var fav_only = $("#cb_favorites").is(':checked');
-	var rgNames = Object.keys(get_list_obj_from_category(category));
+	var rgNames = Object.keys(g_database.get_category_records(category));
 	var output = "";
 	if (category === "subjects")
 	{
 		rgNames.forEach( item_key => {
-			var obj = g_db["subjects"][item_key];
+			var subject_record = g_database.subjects[item_key];
 
 			var fAllow = true;
 			if (filter != null && filter.length > 0)
 			{
-				fAllow = Object.keys(obj).filter( key => obj[key].toString().toLowerCase().includes(filter.toLowerCase()) ).length > 0
+				fAllow = Object.keys(subject_record).filter( key => subject_record[key].toString().toLowerCase().includes(filter.toLowerCase()) ).length > 0
 			}
 
-			if (fAllow && fav_only && (!Object.keys(obj).includes("favorite") || obj["favorite"] == 0))
+			if (fAllow && fav_only && (!Object.keys(subject_record).includes("favorite") || subject_record["favorite"] == 0))
 			{
 				fAllow = false;
 				return;
@@ -624,7 +647,7 @@ function get_names_from_category_filter(category, prepost)
 
 			if (fAllow)
 			{
-				output += decorate_subject_name_from_obj(obj) + "\n";
+				output += g_database.decorate_subject_name_from_record(subject_record) + "\n";
 			}
 		});
 		return output;
@@ -635,54 +658,32 @@ function get_names_from_category_filter(category, prepost)
 	}
 }
 
-function get_names_from_category(category, prepost)
-{
-	var rgNames = Object.keys(get_list_obj_from_category(category));
-	var output = "";
-	if (category === "subjects")
-	{
-		rgNames.forEach( item_key => {
-			var obj = g_db["subjects"][item_key];
-			if (Object.keys(obj).includes("prefixes"))
-				output += obj["prefixes"] + " ";
-			output += item_key;
-			if (Object.keys(obj).includes("postfixes"))
-				output += ", " + obj["postfixes"];
-			output += "\n"
-		});
-		return output;
-	}
-	else
-	{
-		return rgNames.join("\n");
-	}
-}
 
 function get_psv(category)
 {
-	if (g_db == null)
+	if (g_database == null)
 	{
 		report_results(false, "No JSON Loaded!");
 	}
 
-	var rgRecords = get_list_obj_from_category(category);
-	var dictCols = get_cols_from_category(category);
+	var rg_records = g_database.get_category_records(category);
+	var dict_cols = g_database.generate_cols_from_category(category);
 
-	var output = Object.keys(dictCols).join("|") + "\n";
-	Object.keys(rgRecords).forEach( recordKey => {
+	var output = Object.keys(dict_cols).join("|") + "\n";
+	Object.keys(rg_records).forEach( record_key => {
 		var first = true;
-		Object.entries(dictCols).forEach( entry => {
+		Object.entries(dict_cols).forEach( entry => {
 			const [colName, colType] = entry;
 			if (first)
 				first = false;
 			else
 				output += "|"
-			if (Object.keys(rgRecords[recordKey]).includes(colName))
+			if (Object.keys(rg_records[record_key]).includes(colName))
 			{
 				if (colType == "array")
-					output += rgRecords[recordKey][colName].join(";");
+					output += rg_records[record_key][colName].join(";");
 				else
-					output += rgRecords[recordKey][colName];
+					output += rg_records[record_key][colName];
 			}
 		});
 		output += "\n";
@@ -691,7 +692,6 @@ function get_psv(category)
 	$("#tool_out").val(output);
 	report_results(true, "PSV Output!");
 }
-
 
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -704,9 +704,9 @@ document.addEventListener("DOMContentLoaded", function() {
 		load_json();
 	});
 
-	$("#btn_get_artists_psv").click(function() {
+	$("#btn_get_styles_psv").click(function() {
 		g_process_mode = "tool";
-		get_psv("artists");
+		get_psv("styles");
 	});
 
 	$("#btn_get_subjects_psv").click(function() {
@@ -716,12 +716,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	$("#btn_get_subject_names").click(function() {
 		g_process_mode = "tool";
-		$("#tool_out").val(get_names_from_category("subjects", true));
+		$("#tool_out").val(get_record_names_from_category("subjects", true));
 	});
 
 	$("#btn_filter_subject_names").click(function() {
 		g_process_mode = "tool";
-		$("#tool_out").val(get_names_from_category_filter("subjects", true));
+		$("#tool_out").val(get_record_names_from_category_filter("subjects", true));
 	});
 
 	$("#btn_random_prompts").click(function() {
@@ -735,9 +735,9 @@ document.addEventListener("DOMContentLoaded", function() {
 		
 		prompts = Array.from({length: cp}, function() {
 			if (sub_only)
-				return decorate_subject_name(random_subject(fav_only)) + extra;
+				return g_database.decorate_subject_name(g_database.random_subject(fav_only)) + extra;
 			else
-				return random_prompt(fav_only) + extra;
+				return g_database.random_prompt(fav_only) + extra;
 		});
 
 		out = $("#tool_out").val();
@@ -748,14 +748,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	$("#btn_get_json").click(function() {
 		g_process_mode = "tool";
-		sanitize_db();
-		$("#tool_out").val(obj_to_json(g_db));
-	});
-
-	$("#btn_describe_categories").click(function() {
-		g_process_mode = "tool";
-		cat_desc = describe_categories();
-		$("#tool_out").val(obj_to_json(cat_desc));
+		g_database.sanitize_db();
+		$("#tool_out").val(g_database.json);
 	});
 
 	$("#btn_clear_tool_outout").click(function() {
