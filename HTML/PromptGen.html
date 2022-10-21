@@ -214,6 +214,8 @@
 	</div>
 	<script>
 
+// JAVASCRIPT UTILITY FUNCTIONS
+
 function random_entry(rg) { return rg[Math.floor(Math.random()*rg.length)];}
 function random_object_property_value(obj) { return obj[random_entry(Object.keys(obj))]; }
 function random_object_key(obj) { return random_entry(Object.keys(obj)); }
@@ -223,6 +225,18 @@ function get_opv(obj, prop, default_val = "")
 		return obj[prop];
 	
 	return default_val;
+}
+
+function get_var_type(val)
+{
+	if (Array.isArray(val))
+		return "array";
+	else if (val.constructor == Object)
+		return "dict";
+	else if (typeof val === 'string')
+		return "string";
+	else
+		return "unknown";
 }
 
 
@@ -242,12 +256,27 @@ function property_compare(a, b, name_first)
 	return  a.localeCompare(b);
 }
 
-function sort_obj_props(obj, name_first = false)
+function sort_obj_props(obj, name_first = false, deep=false)
 {
+	if (deep)
+	{
+		Object.keys(obj).forEach( k => {
+			t = get_var_type(obj[k]);
+			if (t === "array")
+			{
+				obj[k] = obj[k].sort();
+			}
+			else if (t === "dict")
+			{
+				obj[k] = sort_obj_props(obj[k], name_first, deep);
+			}
+		});
+	}
+
 	return Object.fromEntries(Object.entries(obj).sort((a, b) => property_compare(a[0], b[0], name_first)));
 }
 
-function arrayify(val)
+function ensure_array(val)
 {
 	if (Array.isArray(val))
 		return val;
@@ -260,17 +289,15 @@ function arrayify(val)
 	return [ val ]
 }
 
-function sanitize_obj_props(obj)
+function sanitize_record(obj)
 {
-	obj = sort_obj_props(obj, true);
-
-	// Needed anymore? This was to convert the old DB.
+	// TODO: Use description to identify arrays and objects?
 	if (Object.keys(obj).includes("tags"))
-		obj["tags"] = arrayify(obj["tags"]);
+		obj["tags"] = ensure_array(obj["tags"]);
 	if (Object.keys(obj).includes("ethnicity"))
-		obj["ethnicity"] = arrayify(obj["ethnicity"]);
-	
-	return obj;
+		obj["ethnicity"] = ensure_array(obj["ethnicity"]);
+
+	return sort_obj_props(obj, true /*name first*/, true /*deep*/);
 }
 
 
@@ -300,12 +327,14 @@ class PromptDatabase
 
 	sort_db()
 	{
+		// Shaddow sort of the categorites...
 		this.m_source = sort_obj_props(this.m_source);
-
+		
+		// Deep sort of the record tables.
 		this.categories.forEach( cat => {
 			this.m_source[cat] = sort_obj_props(this.m_source[cat]);
 			Object.keys(this.m_source[cat]).forEach( key => {
-				this.m_source[cat][key] = sanitize_obj_props(this.m_source[cat][key]);
+				this.m_source[cat][key] = sanitize_record(this.m_source[cat][key]);
 			})
 		});
 	}
@@ -411,14 +440,7 @@ class PromptDatabase
 				if (!(pKey in cols))
 				{
 					var val = cat_records[key][pKey];
-					if (Array.isArray(val))
-						cols[pKey] = "array";
-					else if (val.constructor == Object)
-						cols[pKey] = "dict";
-					else if (typeof val === 'string')
-						cols[pKey] = "string";
-					else
-						cols[pKey] = "unknown";
+					cols[pKey] = get_var_type(val);
 				}
 			});
 		});
