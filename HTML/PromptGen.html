@@ -177,7 +177,13 @@
 							</div>
 							<div class="row">
 								<button id="btn_random_prompts">Add Random Prompts</button>
-								<label for="prompt_count">Count</label><input id="prompt_count_slider" type="range" value="10" min="0" max="1000" step="10" /><input id="prompt_count" class="txt_short" type="number" value="10" min="1" />
+								<input type="radio" name="random_type" id="rad_all_styles" value="all_styles" />
+								<label for="all_styles">all styles</label>
+								<input type="radio" name="random_type" id="rad_all_subjects" value="all_subjects"/>
+								<label for="all_subjects">all subjects</label>
+								<input type="radio" name="random_type" id="rad_by_count" value="by_count" checked />
+								<label for="by_count">by count</label>
+								<input id="prompt_count_slider" class="count_rel" type="range" value="10" min="0" max="1000" step="10" /><input id="prompt_count" class="txt_short count_rel" type="number" value="10" min="1" />
 								<input id="prompt_template" class="txt_long" type="text" placeholder='prompt template, ex: "{subject}, {style}"' value="{subject}, {style}">
 							</div>
 							<div class="row">
@@ -459,11 +465,15 @@ class PromptDatabase
 		return sort_obj_props(cols, true);
 	}
 
-	get_all_subject_names(fav_only)
+	get_all_subject_names(fav_only, decorate = false)
 	{
 		var raw_names = Object.keys(this.subjects);
 		if (fav_only)
 			raw_names = raw_names.filter( name => Object.keys(this.subjects[name]).includes("favorite") && this.subjects[name].favorite == 1);
+		
+		if (decorate)
+			return raw_names.map(rawname => this.decorate_subject_name(rawname));
+		
 		return raw_names;
 	}
 
@@ -489,10 +499,6 @@ class PromptDatabase
 	}
 
 
-	decorate_subject_name(name)
-	{
-		return this.decorate_subject_name_from_record(this.get_subject_record(name));
-	}
 
 	get_record_names_from_category(category, decorate = false)
 	{
@@ -513,18 +519,57 @@ class PromptDatabase
 		}
 	}
 
-	random_subject(fav_only)
+	decorate_subject_name(name)
 	{
+		return this.decorate_subject_name_from_record(this.get_subject_record(name));
+	}
+
+	decorate_style_tag(tag)
+	{
+		return random_entry(this.get_prompts_from_style_key(tag));
+	}
+
+	random_subject(fav_only, decorate = false)
+	{
+		if (decorate)
+			return this.decorate_subject_name(this.random_subject(fav_only));
+
 		return random_entry(this.get_all_subject_names(fav_only));
+	}
+
+	random_style(fav_only, decorate = false)
+	{
+		// TODO: favs
+		var style = random_object_key(this.styles);
+		if (decorate)
+			return this.decorate_style_tag(style);
+		
+		return style;
 	}
 
 	random_prompt(prompt_template="{subject}, {style}", fav_only=false)
 	{
 		var style_prompts = this.get_prompts_from_style_key(random_object_key(this.styles));
-		return prompt_template.replace("{subject}", this.decorate_subject_name(this.random_subject(fav_only))).replace("{style}", random_entry(style_prompts));
+		return prompt_template.replace("{subject}", this.random_subject(fav_only, true)).replace("{style}", random_entry(style_prompts));
 	}
 
-	get_all_style_prompts()
+	random_prompts(prompt_template, rnd_mode, fav_only)
+	{
+		var prompts = [];
+		switch(rnd_mode)
+		{
+			case 'all_styles':
+				prompts = this.get_all_style_promptlets().map( plet => prompt_template.replace("{style}", plet).replace("{subject}", this.random_subject(fav_only, true /*decorate*/)));
+				break;
+			case 'all_subjects':
+				prompts = this.get_all_subject_names(fav_only, true /*decorate*/ ).map( subj => prompt_template.replace("{subject}", subj).replace("{style}", this.random_style(fav_only, true /*decorate*/)));
+				break;
+		}
+		
+		return prompts;
+	}
+
+	get_all_style_promptlets()
 	{
 		var all_prompts = [];
 		Object.keys(this.styles).forEach( style_key => {
@@ -878,18 +923,29 @@ document.addEventListener("DOMContentLoaded", function() {
 		output_txt(get_record_names_from_category_filter("subjects", true).join("\n"));
 	});
 
-	register_btn("tool", "#btn_filter_styles", function() { output_txt(g_database.get_all_style_prompts().join("\n")); });
+	register_btn("tool", "#btn_filter_styles", function() { output_txt(g_database.get_all_style_promptlets().join("\n")); });
 
 	register_btn("tool", "#btn_random_prompts", function() {
-		var cp = parseInt($("#prompt_count").val());
 		var fav_only = $("#cb_favorites").is(':checked');
+		var rnd_mode = $('input[name="random_type"]:checked').val();
 		var prompt_template = $("#prompt_template").val().trim();
 		if (prompt_template.length == 0)
 			prompt_template = "{subject}, {style}";
-		
-		prompts = Array.from({length: cp}, function() {
-			return g_database.random_prompt(prompt_template, fav_only);
-		});
+
+		var prompts = [];
+		switch (rnd_mode)
+		{
+			case "all_styles":
+			case "all_subjects":
+				prompts = g_database.random_prompts(prompt_template, rnd_mode, fav_only);
+				break;
+			case "by_count":
+				var cp = parseInt($("#prompt_count").val());
+				prompts = Array.from({length: cp}, function() {	
+					return g_database.random_prompt(prompt_template, fav_only);
+				});
+				break;
+		}
 
 		output_txt(prompts.join("\n") + "\n", true);
 	});
@@ -901,6 +957,18 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	register_btn("tool", "#btn_clear_tool_outout", function() { output_txt("");	});
 	
+	$('input[type=radio][name=random_type').change(function() {
+		switch ($(this).val()) {
+			case 'all_styles':
+			case 'all_subjects':
+				$(".count_rel").hide();
+				break;
+			case 'by_count':
+				$(".count_rel").show();
+				break;
+		}
+	})
+
 	$("#prompt_count_slider").on('input', function() {
 		newval = $(this).val();
 		if (newval < 1)
