@@ -869,7 +869,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		var fav_only = $("#cb_favorites").is(':checked');
 		var prompt_template = $("#prompt_template").val().trim();
 		if (prompt_template.length == 0)
-			prompt_template = "{prompt}, {style}";
+			prompt_template = "{subject}, {style}";
 		
 		prompts = Array.from({length: cp}, function() {
 			if (sub_only)
