@@ -70,6 +70,14 @@
 			flex-direction: column;
 		}
 
+		.txt_long {
+			width: 50em;
+		}
+
+		.txt_short {
+			width: 5em;
+		}
+
 		.success {
 			color: green;
 		}
@@ -96,6 +104,7 @@
 			grid-column: 2;
 			width: 100%;
 		}
+
 
 	</style>
 
@@ -163,14 +172,18 @@
 							</div>
 							<div class="row">
 								<button id="btn_filter_subject_names">Get Filtered Subject Names</button>
-								<label for="txt_filter">Filter</label><textarea id="txt_filter" placeholder="filter" rows="1"></textarea>
+								<label for="txt_filter_sub">Filter</label><textarea id="txt_filter_sub" placeholder="filter" rows="1"></textarea>
 								<input type="checkbox" name="favorites" id="cb_favorites" value="favorite"/><label for="cb_favorites">Favorites Only</label>
 							</div>
 							<div class="row">
 								<button id="btn_random_prompts">Add Random Prompts</button>
 								<label for="cb_subjects_only">Subjects Only</label><input id="cb_subjects_only" type="checkbox" />
-								<label for="prompt_count">Count</label><input id="prompt_count_slider" type="range" value="10" min="0" max="1000" step="10" /><input id="prompt_count" type="number" value="10" min="1" />
-								<input id="random_prompt_postfix" type="text" placeholder="Add extra prompt text here" />
+								<label for="prompt_count">Count</label><input id="prompt_count_slider" type="range" value="10" min="0" max="1000" step="10" /><input id="prompt_count" class="txt_short" type="number" value="10" min="1" />
+								<input id="prompt_template" class="txt_long" type="text" placeholder='prompt template, ex: "{subject}, {style}"' value="{subject}, {style}">
+							</div>
+							<div class="row">
+								<button id="btn_filter_styles">Get Filtered Styles</button>
+								<label for="txt_filter_style">Filter</label><textarea id="txt_filter_style" placeholder="filter" rows="1"></textarea>
 							</div>
 						</div>
 					</div>	
@@ -339,7 +352,7 @@ class PromptDatabase
 		});
 	}
 
-	get_prompts_from_style_prompt(cat, subcat)
+	get_prompts_from_style_key_prompt(cat, subcat)
 	{
 		var prompt_record = get_opv(this.style_prompts, cat, null);
 		if (prompt_record == null)
@@ -358,7 +371,7 @@ class PromptDatabase
 		return [subcats[subcat].default_prompt];
 	}
 
-	get_prompts_from_style(style_tag)
+	get_prompts_from_style_key(style_tag)
 	{
 		var style_record = get_opv(this.styles, style_tag, null);
 		if (style_record == null)
@@ -371,7 +384,7 @@ class PromptDatabase
 		var prompts = get_opv(style_record, "override_prompts", []);
 		if (prompts.length == 0)
 		{
-			prompts = this.get_prompts_from_style_prompt(style_record.category, get_opv(style_record, "subcategory", ""));
+			prompts = this.get_prompts_from_style_key_prompt(style_record.category, get_opv(style_record, "subcategory", ""));
 		}
 
 		return prompts.map( str => str.replace("*", name));
@@ -506,11 +519,21 @@ class PromptDatabase
 		return random_entry(this.get_all_subject_names(fav_only));
 	}
 
-	random_prompt(fav_only)
+	random_prompt(prompt_template="{subject}, {style}", fav_only=false)
 	{
-		var style_prompts = this.get_prompts_from_style(random_object_key(this.styles));
-		return this.decorate_subject_name(this.random_subject(fav_only)) + ", " + random_entry(style_prompts);
+		var style_prompts = this.get_prompts_from_style_key(random_object_key(this.styles));
+		return prompt_template.replace("{subject}", this.decorate_subject_name(this.random_subject(fav_only))).replace("{style}", random_entry(style_prompts));
 	}
+
+	get_all_style_prompts()
+	{
+		var all_prompts = [];
+		Object.keys(this.styles).forEach( style_key => {
+			all_prompts.push(this.get_prompts_from_style_key(style_key));
+		});
+		return all_prompts;
+	}
+
 };
 
 var g_database = null;
@@ -725,7 +748,7 @@ function load_json()
 	var desc = "JSON Loaded:\n---------\n";
 	desc += "Subjects: " + obj_prop_count(g_database.subjects) + " entries.\n";
 	desc += "Styles: " + obj_prop_count(g_database.styles) + " entries.\n";
-	desc += g_database.random_prompt(false);
+	desc += g_database.random_prompt("{subject}, {style}", false);
 	desc += "\n---------\n";
 	$("#txt_out").val(desc);
 }
@@ -733,10 +756,10 @@ function load_json()
 
 function get_record_names_from_category_filter(category, decorate)
 {
-	var filter = $("#txt_filter").val();
+	var filter = $("#txt_filter_sub").val();
 	var fav_only = $("#cb_favorites").is(':checked');
 	var rgNames = Object.keys(g_database.get_category_records(category));
-	var output = "";
+	var record_names = [];
 	if (category === "subjects")
 	{
 		rgNames.forEach( item_key => {
@@ -756,14 +779,15 @@ function get_record_names_from_category_filter(category, decorate)
 
 			if (fAllow)
 			{
-				output += g_database.decorate_subject_name_from_record(subject_record) + "\n";
+				output.append(g_database.decorate_subject_name_from_record(subject_record));
 			}
 		});
 		return output;
 	}
 	else
 	{
-		return rgNames.join("\n");
+		// TODO: Decorate styles with prompts? Have to decide if we pick more than one or what.
+		return rgNames;
 	}
 }
 
@@ -830,23 +854,28 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	$("#btn_filter_subject_names").click(function() {
 		g_process_mode = "tool";
-		$("#tool_out").val(get_record_names_from_category_filter("subjects", true));
+		$("#tool_out").val(get_record_names_from_category_filter("subjects", true).join("\n"));
 	});
+
+	$("#btn_filter_styles").click(function() {
+		g_process_mode = "tool";
+		$("#tool_out").val(g_database.get_all_style_prompts().join("\n"));
+	})
 
 	$("#btn_random_prompts").click(function() {
 		g_process_mode = "tool";
 		var cp = parseInt($("#prompt_count").val());
 		var sub_only = $("#cb_subjects_only").is(":checked");
 		var fav_only = $("#cb_favorites").is(':checked');
-		var extra = $("#random_prompt_postfix").val().trim();
-		if (extra.length > 0)
-			extra = ", " + extra;
+		var prompt_template = $("#prompt_template").val().trim();
+		if (prompt_template.length == 0)
+			prompt_template = "{prompt}, {style}";
 		
 		prompts = Array.from({length: cp}, function() {
 			if (sub_only)
 				return g_database.decorate_subject_name(g_database.random_subject(fav_only)) + extra;
 			else
-				return g_database.random_prompt(fav_only) + extra;
+				return g_database.random_prompt(prompt_template, fav_only);
 		});
 
 		out = $("#tool_out").val();
