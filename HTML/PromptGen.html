@@ -128,7 +128,7 @@
 					</div>
 					<div class="out_container">
 						<textarea
-							id="txt_out"
+							id="load_out"
 							class="txtbox"
 							rows="25"
 							readonly></textarea>
@@ -177,7 +177,6 @@
 							</div>
 							<div class="row">
 								<button id="btn_random_prompts">Add Random Prompts</button>
-								<label for="cb_subjects_only">Subjects Only</label><input id="cb_subjects_only" type="checkbox" />
 								<label for="prompt_count">Count</label><input id="prompt_count_slider" type="range" value="10" min="0" max="1000" step="10" /><input id="prompt_count" class="txt_short" type="number" value="10" min="1" />
 								<input id="prompt_template" class="txt_long" type="text" placeholder='prompt template, ex: "{subject}, {style}"' value="{subject}, {style}">
 							</div>
@@ -529,7 +528,8 @@ class PromptDatabase
 	{
 		var all_prompts = [];
 		Object.keys(this.styles).forEach( style_key => {
-			all_prompts.push(this.get_prompts_from_style_key(style_key));
+			var prompts = this.get_prompts_from_style_key(style_key);
+			all_prompts = all_prompts.concat(prompts);
 		});
 		return all_prompts;
 	}
@@ -750,7 +750,7 @@ function load_json()
 	desc += "Styles: " + obj_prop_count(g_database.styles) + " entries.\n";
 	desc += g_database.random_prompt("{subject}, {style}", false);
 	desc += "\n---------\n";
-	$("#txt_out").val(desc);
+	output_txt(desc);
 }
 
 
@@ -822,93 +822,91 @@ function get_psv(category)
 		output += "\n";
 	});
 
-	$("#tool_out").val(output);
+	output_txt(output);
 	report_results(true, "PSV Output!");
 }
 
+function output_txt(text, append=false)
+{
+	var $txt_out = null;
+	switch (g_process_mode)
+	{
+		case "tool":
+			$txt_out = $("#tool_out");
+			break;
+		case "load":
+			$txt_out = $("#load_out");
+			break;
+	}
+
+	if (append)
+	{
+		txt_old = $txt_out.val();
+		if (txt_old.length > 0 && !txt_old.endsWith("\n"))
+			txt_old += "\n";
+		text = txt_old + text;
+	}
+
+	$txt_out.val(text);
+	$txt_out.scrollTop($txt_out[0].scrollHeight);
+
+}
+
+function register_btn( mode, selector, fn )
+{
+	$(selector).click(function() {
+		g_process_mode = mode;
+		fn();
+		g_process_mode = "";
+	});
+}
 
 document.addEventListener("DOMContentLoaded", function() {
 	
 	// JQuery UI Inits
 	$( function() { $("#tabs").tabs() });
 
-	$("#btn_load_json").click(function() {
-		g_process_mode = "load";
-		load_json();
+	register_btn("load", "#btn_load_json", function() { load_json(); });
+
+	register_btn("tool", "#btn_get_styles_psv", function() { get_psv("styles"); });
+
+	register_btn("tool", "#btn_get_subjects_psv", function() { get_psv("subjects"); });
+
+	register_btn("tool", "#btn_get_subject_names", function() { output_txt(get_record_names_from_category("subjects", true)); });
+
+	register_btn("tool", "#btn_filter_subject_names", function() {
+		output_txt(get_record_names_from_category_filter("subjects", true).join("\n"));
 	});
 
-	$("#btn_get_styles_psv").click(function() {
-		g_process_mode = "tool";
-		get_psv("styles");
-	});
+	register_btn("tool", "#btn_filter_styles", function() { output_txt(g_database.get_all_style_prompts().join("\n")); });
 
-	$("#btn_get_subjects_psv").click(function() {
-		g_process_mode = "tool";
-		get_psv("subjects");
-	});
-
-	$("#btn_get_subject_names").click(function() {
-		g_process_mode = "tool";
-		$("#tool_out").val(get_record_names_from_category("subjects", true));
-	});
-
-	$("#btn_filter_subject_names").click(function() {
-		g_process_mode = "tool";
-		$("#tool_out").val(get_record_names_from_category_filter("subjects", true).join("\n"));
-	});
-
-	$("#btn_filter_styles").click(function() {
-		g_process_mode = "tool";
-		$("#tool_out").val(g_database.get_all_style_prompts().join("\n"));
-	})
-
-	$("#btn_random_prompts").click(function() {
-		g_process_mode = "tool";
+	register_btn("tool", "#btn_random_prompts", function() {
 		var cp = parseInt($("#prompt_count").val());
-		var sub_only = $("#cb_subjects_only").is(":checked");
 		var fav_only = $("#cb_favorites").is(':checked');
 		var prompt_template = $("#prompt_template").val().trim();
 		if (prompt_template.length == 0)
 			prompt_template = "{subject}, {style}";
 		
 		prompts = Array.from({length: cp}, function() {
-			if (sub_only)
-				return g_database.decorate_subject_name(g_database.random_subject(fav_only)) + extra;
-			else
-				return g_database.random_prompt(prompt_template, fav_only);
+			return g_database.random_prompt(prompt_template, fav_only);
 		});
 
-		out = $("#tool_out").val();
-		if (out.length > 0 && !out.endsWith("\n"))
-			out += "\n";
-		$("#tool_out").val(out + prompts.join("\n") + "\n");
+		output_txt(prompts.join("\n") + "\n", true);
 	});
 
-	$("#btn_get_json").click(function() {
-		g_process_mode = "tool";
+	register_btn("tool", "#btn_get_json", function() {
 		g_database.sanitize_db();
-		$("#tool_out").val(g_database.json);
+		output_txt(g_database.json);
 	});
 
-	$("#btn_clear_tool_outout").click(function() {
-		$("#tool_out").val("");
-	});
-
-	$("#sel_category").change(function() {
-		refresh_edit_tab();
-	});
-
-	$("#sel_item").change(function() {
-		refresh_edit_props();
-	});
-
+	register_btn("tool", "#btn_clear_tool_outout", function() { output_txt("");	});
+	
 	$("#prompt_count_slider").on('input', function() {
 		newval = $(this).val();
 		if (newval < 1)
 			newval = 1;
 		$("#prompt_count").val(newval);
-	})
-
+	});
 
 });
 	</script>
