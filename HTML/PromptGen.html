@@ -327,7 +327,7 @@ class PromptDatabase
 	}
 
 	get_category_records(category) { return get_opv(this.m_source, category, null);	}
-	get categories() { return [ "subjects", "style_prompts", "styles" ]}
+	get categories() { return [ "subjects", "style_prompts", "styles", "ethnicities" ]}
 	get subjects() { return this.get_category_records("subjects"); }
 	get styles() { return this.get_category_records("styles"); }
 	get style_prompts() { return this.get_category_records("style_prompts")}
@@ -339,7 +339,7 @@ class PromptDatabase
 	{
 		this.m_source["_desc"] = new Object();
 		this.categories.forEach( cat => {
-			this.m_source["_desc"][cat] = this.generate_cols_from_category(cat);
+			this.m_source["_desc"][cat] = this.describe_category(cat);
 		});
 	}
 
@@ -448,21 +448,44 @@ class PromptDatabase
 		this.sort_db();
 	}
 
-	generate_cols_from_category(category)
+	update_desc_from_obj(obj_desc, obj)
 	{
-		var cat_records = this.get_category_records(category);
-
-		var cols = {};
-		Object.keys(cat_records).forEach( key => {
-			Object.keys(cat_records[key]).forEach( pKey => {
-				if (!(pKey in cols))
+		Object.keys(obj).forEach( key => {
+			var val = obj[key];
+			var var_type = get_var_type(val);
+			if (var_type === "dict")
+			{
+				if (!(key in obj_desc))
 				{
-					var val = cat_records[key][pKey];
-					cols[pKey] = get_var_type(val);
+					obj_desc[key] = {};
 				}
-			});
+
+				// No good way to id dictionaries vs objects
+				if (key === "subcategories")
+					this.update_desc_from_dictionary(obj_desc[key], val);
+				else
+					this.update_desc_from_obj(obj_desc[key], val);
+			}
+			else
+			{
+				if (!(key in obj_desc))
+					obj_desc[key] = var_type;
+			}
 		});
-		return sort_obj_props(cols, true);
+	}
+
+	update_desc_from_dictionary(obj_desc, dict_list)
+	{
+		Object.keys(dict_list).forEach( key => {
+			this.update_desc_from_obj(obj_desc, dict_list[key]);
+		});
+	}
+
+	describe_category(category)
+	{
+		var obj_desc = {};
+		this.update_desc_from_dictionary(obj_desc, this.get_category_records(category));
+		return sort_obj_props(obj_desc, true);
 	}
 
 	get_all_subject_names(fav_only, decorate = false)
@@ -642,7 +665,7 @@ function refresh_edit_props()
 		if (sel_obj != null)
 		{
 			var i = 0;
-			props = g_database.generate_cols_from_category(get_sel_cat());
+			props = g_database.describe_category(get_sel_cat());
 			
 			Object.keys(props).forEach( prop_key => {
 				var change_val = get_prop_change( get_sel_cat(), sel_key, prop_key );
@@ -845,7 +868,7 @@ function get_psv(category)
 	}
 
 	var rg_records = g_database.get_category_records(category);
-	var dict_cols = g_database.generate_cols_from_category(category);
+	var dict_cols = g_database.describe_category(category);
 
 	var output = Object.keys(dict_cols).join("|") + "\n";
 	Object.keys(rg_records).forEach( record_key => {
