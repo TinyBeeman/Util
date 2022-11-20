@@ -327,7 +327,7 @@ class PromptDatabase
 	}
 
 	get_category_records(category) { return get_opv(this.m_source, category, null);	}
-	get categories() { return [ "subjects", "style_prompts", "styles", "ethnicities" ]}
+	get categories() { return [ "subjects", "style_prompts", "styles", "ethnicities", "prompts" ]}
 	get subjects() { return this.get_category_records("subjects"); }
 	get styles() { return this.get_category_records("styles"); }
 	get style_prompts() { return this.get_category_records("style_prompts")}
@@ -345,7 +345,7 @@ class PromptDatabase
 
 	sort_db()
 	{
-		// Shaddow sort of the categorites...
+		// Shallow sort of the categorites...
 		this.m_source = sort_obj_props(this.m_source);
 		
 		// Deep sort of the record tables.
@@ -516,8 +516,8 @@ class PromptDatabase
 			wrap_brackets = parseInt(subject_record["exaggerated"]);
 
 		output += "[".repeat(wrap_brackets) + subject_record["name"] + "]".repeat(wrap_brackets);
-		if (Object.keys(subject_record).includes("postfixes"))
-			output += ", " + subject_record["postfixes"];
+		if (Object.keys(subject_record).includes("suffixes"))
+			output += ", " + subject_record["suffixes"];
 		return output;
 	}
 
