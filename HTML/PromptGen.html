@@ -251,6 +251,8 @@ function get_var_type(val)
 		return "array";
 	else if (val.constructor == Object)
 		return "dict";
+	else if (typeof val === "number")
+		return "number";
 	else if (typeof val === 'string')
 		return "string";
 	else
