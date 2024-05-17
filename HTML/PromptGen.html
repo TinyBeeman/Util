@@ -173,6 +173,7 @@
 							<div class="row">
 								<button id="btn_filter_subject_names">Get Filtered Subject Names</button>
 								<label for="txt_filter_sub">Filter</label><textarea id="txt_filter_sub" placeholder="filter" rows="1"></textarea>
+								<input type="checkbox" name="favorites" id="cb_invert_filter" value="invert_filter"/><label for="cb_invert_filter">Invert Filter</label>
 								<input type="checkbox" name="favorites" id="cb_favorites" value="favorite"/><label for="cb_favorites">Favorites Only</label>
 							</div>
 							<div class="row">
@@ -517,7 +518,10 @@ class PromptDatabase
 		if (Object.keys(subject_record).includes("exaggerated"))
 			wrap_brackets = parseInt(subject_record["exaggerated"]);
 
-		output += "[".repeat(wrap_brackets) + subject_record["name"] + "]".repeat(wrap_brackets);
+		if (wrap_brackets >= 0)
+			output += "[".repeat(wrap_brackets) + subject_record["name"] + "]".repeat(wrap_brackets);
+		else if (wrap_brackets < 0)
+			output += "[".repeat(-1 * wrap_brackets) + subject_record["name"] + "]".repeat(-1 * wrap_brackets);
 		if (Object.keys(subject_record).includes("suffixes"))
 			output += ", " + subject_record["suffixes"];
 		return output;
@@ -826,10 +830,13 @@ function get_record_names_from_category_filter(category, decorate)
 {
 	var filter = $("#txt_filter_sub").val();
 	var fav_only = $("#cb_favorites").is(':checked');
+	var invert_filter = $("#cb_invert_filter").is(':checked');
 	var rgNames = Object.keys(g_database.get_category_records(category));
 	var record_names = [];
+	var output = "";
 	if (category === "subjects")
 	{
+		var rgOutput = [];
 		rgNames.forEach( item_key => {
 			var subject_record = g_database.subjects[item_key];
 
@@ -837,6 +844,8 @@ function get_record_names_from_category_filter(category, decorate)
 			if (filter != null && filter.length > 0)
 			{
 				fAllow = Object.keys(subject_record).filter( key => subject_record[key].toString().toLowerCase().includes(filter.toLowerCase()) ).length > 0
+				if (invert_filter)
+					fAllow = !fAllow;
 			}
 
 			if (fAllow && fav_only && (!Object.keys(subject_record).includes("favorite") || subject_record["favorite"] == 0))
@@ -847,10 +856,10 @@ function get_record_names_from_category_filter(category, decorate)
 
 			if (fAllow)
 			{
-				output.append(g_database.decorate_subject_name_from_record(subject_record));
+				rgOutput.push(subject_record["name"]);
 			}
 		});
-		return output;
+		return rgOutput;
 	}
 	else
 	{
@@ -940,7 +949,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 	register_btn("tool", "#btn_get_subjects_psv", function() { get_psv("subjects"); });
 
-	register_btn("tool", "#btn_get_subject_names", function() { output_txt(get_record_names_from_category("subjects", true)); });
+	register_btn("tool", "#btn_get_subject_names", function() { output_txt(g_database.get_record_names_from_category("subjects", true)); });
 
 	register_btn("tool", "#btn_filter_subject_names", function() {
 		output_txt(get_record_names_from_category_filter("subjects", true).join("\n"));
