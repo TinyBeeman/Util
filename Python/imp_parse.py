@@ -18,6 +18,7 @@
 # update_i( value_cmd, [tag_name] ) calls cmd whenever prompt index changes (aka, every image)
 # update_b( value_cmd, [tag_name] ) calls cmd for every new batch, previous value otherwise. (same as update_c( cmd, batch_size ))
 # update_c( value_cmd, c ) calls cmd whenever the (prompt count % c) == 0, previous value otherwise
+# string: Any string, including spaces can be a value. We will attempt to convert it to a number if needed.
 
 # ForEach Command
 # foreach( array_cmd, [repeat = 1], [index = 0], [tag=""] )
@@ -28,5 +29,62 @@
 
 # tag( tag_name )
 
+import re
 
 example = 'A painting by {{rnd(list("artists"))}}, {{seed(())}}'
+
+tokens = (
+    'LPAREN',
+    'RPAREN',
+    'LBRACKET',
+    'RBRACKET',
+    'MINUS',
+    'NUMBER',
+    'ID'
+)
+
+t_LPAREN = r'\('
+t_RPAREN = r'\)'
+t_LBRACKET = r'\['
+t_RBRACKET = r'\['
+t_ID   = r'[a-zA-Z_][a-zA-Z0-9_]*'
+
+
+def t_NUMBER(t):
+    r'\d+'
+    try:
+        t.value = int(t.value)
+    except ValueError:
+        print("Integer value too large %d", t.value)
+        t.value = 0
+    return t
+# Ignored characters
+t_ignore = " \t"
+
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += t.value.count("\n")
+    
+def t_error(t):
+    print("Illegal character '%s'" % t.value[0])
+    t.lexer.skip(1)
+
+import ply.lex as lex
+lexer = lex.lex()
+
+
+
+class IPar:
+    def get_code(self, s):
+        codes = []
+        rx = r'{{(?P<code>([^}]|}[^}])*)}}'
+        for m in re.finditer(rx, s):
+            c = m.group('code')
+            if (c is not None):
+                codes.append(c)
+
+
+
+def test():
+    s = r'This is a test of using { and } to detect {{ sections of code contained in the { and }}} and extract them'
+
