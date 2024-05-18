@@ -34,6 +34,7 @@ import re
 import ply.lex as lex
 import ply.yacc as yacc
 import random
+import enum
 
 example = 'A painting by {{rnd(list("artists"))}}, {{seed(())}}'
 
@@ -86,6 +87,11 @@ g_lexer = lex.lex()
 def verbose_level():
     return 1
 
+class StatementType(enum.IntEnum):
+    NONE = enum.auto()
+    SIMPLE = enum.auto()
+    FOREACH = enum.auto()
+
 class ParseNode:
     m_children = None
     def __init__(self, type, children=None, leaf=None):
@@ -98,6 +104,16 @@ class ParseNode:
 
     def insert_child(self, index, child):
         self.m_children.insert(index, child)
+
+    def get_statement_type(self):
+        if (self.m_type == "func" and self.m_leaf.lower() == "foreach"):
+            return StatementType.FOREACH
+
+        for c in self.m_children:
+            if c.get_statement_type() == StatementType.FOREACH:
+                return StatementType.FOREACH
+        
+        return StatementType.SIMPLE
 
     def process(self, idb, stack_depth=0):
         pchildren = []
@@ -182,7 +198,7 @@ class ImpDB:
 
     def __init__(self):
         self.m_artist = [ "Van Gogh", "Norman Rockwell" ]
-        self.m_medium = [ "Oil Painting", "Sculture", "Photo"]
+        self.m_medium = [ "Oil Painting", "Sculpture", "Photo"]
     
     def check_args(args, allowed):
         if (isinstance(allowed, list)):
@@ -279,7 +295,9 @@ class ImpParser:
         idb = ImpDB()
         for c in self.m_codes:
             print(f"Running {c.get_raw_code()}")
-            res = c.build_tree().process(idb)
+            tree:ParseNode = c.build_tree()
+            print(f"Statement Type = {str(tree.get_statement_type())}")
+            res = tree.process(idb)
             print(res)
 
     def describe_self(self):
