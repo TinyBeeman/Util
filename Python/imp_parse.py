@@ -7,7 +7,7 @@
 # seed(string) sets string per prompt
 
 # Array Commands
-# list("name") retrieves array from named list
+# list(name) retrieves array from named list
 # rngi(min, max, [step], [tag_name]) retrieves an array of values from min to max
 # [val;val2;val3]: In place array, separated by semicolons
 
@@ -26,6 +26,7 @@
 #   The parser will walk through the current list of prompts, and repeat each item once (or more times if repeat > 1).
 #   expands will be processed in the order of the indexes, then in order they appear in the list.
 #   Tag can be used if the resulting string should appear elsewhere in the prompt, (by using the tag() function)
+
 
 # tag( tag_name )
 
@@ -72,19 +73,71 @@ def t_error(t):
 import ply.lex as lex
 lexer = lex.lex()
 
+class ImpCode:
+    m_raw = ""
+    m_tokens = None
 
+    def __init__(self, raw_code):
+        global lexer
 
-class IPar:
-    def get_code(self, s):
-        codes = []
+        self.m_raw = raw_code
+        self.m_tokens = []
+        lexer.input(self.m_raw)
+        while True:
+            tok = lexer.token()
+            if not tok:
+                break
+            self.m_tokens.append(tok)
+
+    def get_tokens(self):        
+        return self.m_tokens
+    
+    def describe_self(self):
+        s = f"Raw Code: {self.m_raw}\n" 
+        for t in self.m_tokens:
+            s += f"{str(t)};"
+        s += "\n"
+        return s        
+
+class ImpParser:
+    m_codes: list[str]
+    m_raw: str
+
+    def __init__(self):
+        self.m_codes = []
+        return
+    
+    def set_raw_prompt(self, raw_prompt):
+        self.m_raw = raw_prompt
+        self.m_codes = []
+        # Add strings between {{ and }} to codes
         rx = r'{{(?P<code>([^}]|}[^}])*)}}'
-        for m in re.finditer(rx, s):
+        for m in re.finditer(rx, self.m_raw):
             c = m.group('code')
             if (c is not None):
-                codes.append(c)
+                self.m_codes.append(ImpCode(c))        
+
+    def get_raw_prompt(self):
+        return self.m_raw
+    
+    def get_codes(self):
+        return self.m_codes
+    
+    def describe_self(self):
+        s = "PARSER:\n"
+        s += f"Raw Prompt: {self.m_raw}\n"
+        s += f"CODES\n----\n"
+        for c in self.m_codes:
+            s += c.describe_self()
+        return s
+            
+
 
 
 
 def test():
-    s = r'This is a test of using { and } to detect {{ sections of code contained in the { and }}} and extract them'
+    parser = ImpParser()
+    parser.set_raw_prompt(r'A {{rnda(list(medium))}} by {{foreach(list(artist))}} of {{nexta("subject")}}')
+    print(parser.describe_self())
 
+test()
