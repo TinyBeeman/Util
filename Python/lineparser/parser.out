@@ -1,0 +1,163 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Unused terminals:
+
+    LBRACKET
+    MINUS
+    RBRACKET
+
+Grammar
+
+Rule 0     S' -> statement
+Rule 1     statement -> expression
+Rule 2     expression -> STRING
+Rule 3     expression -> NUMBER
+Rule 4     expression -> ID
+Rule 5     expression -> ID LPAREN arglist RPAREN
+Rule 6     arglist -> expression COMMA arglist
+Rule 7     arglist -> expression
+
+Terminals, with rules where they appear
+
+COMMA                : 6
+ID                   : 4 5
+LBRACKET             : 
+LPAREN               : 5
+MINUS                : 
+NUMBER               : 3
+RBRACKET             : 
+RPAREN               : 5
+STRING               : 2
+error                : 
+
+Nonterminals, with rules where they appear
+
+arglist              : 5 6
+expression           : 1 6 7
+statement            : 0
+
+Parsing method: LALR
+
+state 0
+
+    (0) S' -> . statement
+    (1) statement -> . expression
+    (2) expression -> . STRING
+    (3) expression -> . NUMBER
+    (4) expression -> . ID
+    (5) expression -> . ID LPAREN arglist RPAREN
+
+    STRING          shift and go to state 3
+    NUMBER          shift and go to state 4
+    ID              shift and go to state 5
+
+    statement                      shift and go to state 1
+    expression                     shift and go to state 2
+
+state 1
+
+    (0) S' -> statement .
+
+
+
+state 2
+
+    (1) statement -> expression .
+
+    $end            reduce using rule 1 (statement -> expression .)
+
+
+state 3
+
+    (2) expression -> STRING .
+
+    $end            reduce using rule 2 (expression -> STRING .)
+    COMMA           reduce using rule 2 (expression -> STRING .)
+    RPAREN          reduce using rule 2 (expression -> STRING .)
+
+
+state 4
+
+    (3) expression -> NUMBER .
+
+    $end            reduce using rule 3 (expression -> NUMBER .)
+    COMMA           reduce using rule 3 (expression -> NUMBER .)
+    RPAREN          reduce using rule 3 (expression -> NUMBER .)
+
+
+state 5
+
+    (4) expression -> ID .
+    (5) expression -> ID . LPAREN arglist RPAREN
+
+    $end            reduce using rule 4 (expression -> ID .)
+    COMMA           reduce using rule 4 (expression -> ID .)
+    RPAREN          reduce using rule 4 (expression -> ID .)
+    LPAREN          shift and go to state 6
+
+
+state 6
+
+    (5) expression -> ID LPAREN . arglist RPAREN
+    (6) arglist -> . expression COMMA arglist
+    (7) arglist -> . expression
+    (2) expression -> . STRING
+    (3) expression -> . NUMBER
+    (4) expression -> . ID
+    (5) expression -> . ID LPAREN arglist RPAREN
+
+    STRING          shift and go to state 3
+    NUMBER          shift and go to state 4
+    ID              shift and go to state 5
+
+    arglist                        shift and go to state 7
+    expression                     shift and go to state 8
+
+state 7
+
+    (5) expression -> ID LPAREN arglist . RPAREN
+
+    RPAREN          shift and go to state 9
+
+
+state 8
+
+    (6) arglist -> expression . COMMA arglist
+    (7) arglist -> expression .
+
+    COMMA           shift and go to state 10
+    RPAREN          reduce using rule 7 (arglist -> expression .)
+
+
+state 9
+
+    (5) expression -> ID LPAREN arglist RPAREN .
+
+    $end            reduce using rule 5 (expression -> ID LPAREN arglist RPAREN .)
+    COMMA           reduce using rule 5 (expression -> ID LPAREN arglist RPAREN .)
+    RPAREN          reduce using rule 5 (expression -> ID LPAREN arglist RPAREN .)
+
+
+state 10
+
+    (6) arglist -> expression COMMA . arglist
+    (6) arglist -> . expression COMMA arglist
+    (7) arglist -> . expression
+    (2) expression -> . STRING
+    (3) expression -> . NUMBER
+    (4) expression -> . ID
+    (5) expression -> . ID LPAREN arglist RPAREN
+
+    STRING          shift and go to state 3
+    NUMBER          shift and go to state 4
+    ID              shift and go to state 5
+
+    expression                     shift and go to state 8
+    arglist                        shift and go to state 11
+
+state 11
+
+    (6) arglist -> expression COMMA arglist .
+
+    RPAREN          reduce using rule 6 (arglist -> expression COMMA arglist .)
+
