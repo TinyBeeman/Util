@@ -146,8 +146,6 @@ class StatementType(enum.IntEnum):
     SIMPLE = enum.auto()
     FOREACH = enum.auto()
 
-
-
 class ParseNode:
     m_children = None
     m_last_value = None
@@ -176,21 +174,32 @@ class ParseNode:
 
     def run_func(self, id, args, global_iteration, state):
         match id.lower():
-            case 'rndi':
-                min = int(args[0])
-                max = int(args[1])
-                return random.randint(min, max)
-            case 'rnda':
-                list_size = len(args[0])
-                return args[0][random.randint(0, list_size-1)]
             case 'list':
                 return state.get_list(args[0].lower())    
+            case 'foreach':
+                # foreach( array_cmd, [repeat = 1], [index = 0], [tag=""] )
+                lst = args[0]
+                argc = len(args)
+                repeat = args[1] if (argc >= 2) else 1
+                code_index = args[2] if (argc >= 3) else 0
+                tag = args[3] if (argc >= 4) else ""
+
+                self.m_local_iteration = self.m_local_iteration + 1
+                list_index = ( (self.m_local_iteration // repeat) % len(lst))
+                return args[0][list_index]
             case 'nexta':
                 # nexta(array_cmd, [tag_name]) returns the next item in an array, starting with 0, wrapping around if needed
                 self.m_local_iteration = self.m_local_iteration + 1
                 lst = args[0]
                 index = self.m_local_iteration % len(lst)
                 return args[0][index]
+            case 'rnda':
+                list_size = len(args[0])
+                return args[0][random.randint(0, list_size-1)]
+            case 'rndi':
+                min = int(args[0])
+                max = int(args[1])
+                return random.randint(min, max)
             case 'update_c':
                 return args[0]
             
@@ -228,8 +237,6 @@ class ParseNode:
                     if (global_iteration % c == 0):
                         self.m_last_value = self.m_children[0].m_children[0].process(state, global_iteration, stack_depth + 2)
                     return self.m_last_value
-                    
-                    
 
         # No short circuiting for now
         for child in self.m_children:
@@ -420,7 +427,7 @@ class ImpParser:
 
 def test():
     parser = ImpParser()
-    parser.set_raw_prompt(r'A {{rnda(list(medium))}} by {{foreach(list(artist))}} of {{update_c(nexta(list(artist)), 2)}} with {{rndi(1,5)}} heads.')
+    parser.set_raw_prompt(r'A {{rnda(list(medium))}} by {{foreach(list(artist), 4)}} of {{update_c(nexta(list(artist)), 2)}} with {{rndi(1,5)}} heads.')
     print(parser.describe_self())
     print(parser.produce_prompt(0))
     print(parser.produce_prompt(1))
