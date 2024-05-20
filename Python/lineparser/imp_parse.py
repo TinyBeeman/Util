@@ -90,9 +90,12 @@ class ImpState:
         return [ "Missing List " + name ]
 
 
-example = 'A painting by {{rnd(list("artists"))}}, {{seed(())}}'
+reserved = {
+   'list' : 'LIST',
+   'foreach' : 'FOREACH'
+}
 
-tokens = (
+tokens = [
     'LPAREN',
     'RPAREN',
     'LBRACKET',
@@ -101,8 +104,8 @@ tokens = (
     'NUMBER',
     'STRING',
     'ID',
-    'COMMA'
-)
+    'COMMA',
+] + list(reserved.values())
 
 t_LPAREN = r'\('
 t_RPAREN = r'\)'
@@ -110,6 +113,7 @@ t_STRING = r'".*?"'
 t_LBRACKET = r'\['
 t_RBRACKET = r'\['
 t_COMMA = r','
+
 
 def t_NUMBER(t):
     r'\d+'
@@ -122,6 +126,7 @@ def t_NUMBER(t):
 
 def t_ID(t):
     r'[a-zA-Z_][a-zA-Z0-9_]*'
+    t.type = reserved.get(t.value,'ID')
     return t
 
 # Ignored characters
@@ -174,15 +179,11 @@ class ParseNode:
 
     def run_func(self, id, args, global_iteration, state):
         match id.lower():
-            case 'list':
-                return state.get_list(args[0].lower())    
             case 'foreach':
-                # foreach( array_cmd, [repeat = 1], [index = 0], [tag=""] )
+                # foreach( array_cmd, [repeat = 1], [index = 0] )
                 lst = args[0]
                 argc = len(args)
                 repeat = args[1] if (argc >= 2) else 1
-                code_index = args[2] if (argc >= 3) else 0
-                tag = args[3] if (argc >= 4) else ""
 
                 self.m_local_iteration = self.m_local_iteration + 1
                 list_index = ( (self.m_local_iteration // repeat) % len(lst))
@@ -211,6 +212,34 @@ class ParseNode:
                 return f"{id} Function Not Yet Implemented"
 
     
+    def get_foreach_args(self, state):
+        args = len(self.m_children[0].m_children)
+        list_count = 0
+        repeat = 1
+        index = 0
+        lst = self.m_children[0].m_children[0].get_value_no_iteration(state)
+        list_count = len(lst)
+        if (args >= 2):
+            repeat = self.m_children[0].m_children[1].get_value_no_iteration(state)
+        if (args >= 3):
+            index = self.m_children[0].m_children[2].get_value_no_iteration(state)
+        return [ lst, repeat, index ]
+
+    def preprocess(self, state: ImpState, stack_depth=0):
+        # foreach( array_cmd, [repeat = 1], [index = 0] )
+        if self.m_type == "foreach":
+            # assert(self.m_children[0].m_type == "foreachargs")
+            # Expression: self.m_children[0].m_children[0]
+            rg_args = self.get_foreach_args(state)
+            return [ len(rg_args[0]), rg_args[1], rg_args[2] ]
+        else:
+            return [0,0,0]
+
+    def get_value_no_iteration(self, state: ImpState, global_iteration = 0, stack_depth=0 ):
+        if (self.m_last_value != None):
+            return self.m_last_value
+        else:
+            return self.process(state, global_iteration, stack_depth)
 
     def process(self, state: ImpState, global_iteration, stack_depth=0):
         pchildren = []
@@ -239,8 +268,14 @@ class ParseNode:
                     return self.m_last_value
 
         # No short circuiting for now
-        for child in self.m_children:
-            pchildren.append(child.process(state, global_iteration, stack_depth+1))
+        try:
+            for child in self.m_children:
+                if (isinstance(child, ParseNode)):
+                    pchildren.append(child.process(state, global_iteration, stack_depth+1))
+                else:
+                    pchildren.append(child)
+        except TypeError as te:
+            print(f"self.m_children is not iterable in {self.m_type}")
 
         res = None
         match self.m_type:
@@ -251,10 +286,17 @@ class ParseNode:
                 res = pchildren
             case "id":
                 res = self.m_leaf
+            case "neg_number":
+                res = -1 * self.m_leaf
             case "number":
                 res = self.m_leaf
             case "string":
                 res = self.m_leaf
+            case "list":
+                res = state.get_list(pchildren[0].lower())
+            case "foreach":
+                args = self.get_foreach_args(state)
+                res = self.run_func("foreach", args, global_iteration, state)
             case _:
                 res = pchildren[0]
 
@@ -276,9 +318,42 @@ def p_statement_expr(p):
     'statement : expression'
     p[0] = p[1]
 
+# foreach( array_cmd, [repeat = 1], [index = 0] )
+def p_statement_foreach(p):
+    'statement : FOREACH LPAREN foreachargs RPAREN'
+    p[0] = ParseNode("foreach", [ p[3] ] )
+
+def p_foreachargs_onearg(p):
+    'foreachargs : array'
+    p[0] = ParseNode('foreachargs', [ p[1] ])
+
+def p_foreachargs_twoarg(p):
+    'foreachargs : array COMMA NUMBER'
+    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("number", [], p[3] ) ])
+
+def p_foreachargs_threearg(p):
+    'foreachargs : array COMMA NUMBER COMMA NUMBER'
+    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("number", [], p[3]), ParseNode("number", [], p[5] ) ] )
+
+def p_expression_array(p):
+    'expression : array'
+    p[0] = ParseNode("array", [ p[1] ] )
+
+def p_array_list(p):
+    'array : LIST LPAREN expression RPAREN'
+    p[0] = ParseNode("list", [ p[3] ] )
+
+def p_array_const(p):
+    'array : LBRACKET arglist RBRACKET'
+    p[0] = ParseNode("const_array", [ p[2] ])
+
 def p_expression_string(p):
     'expression : STRING'
     p[0] = ParseNode("string", [], p[1].strip('"') )
+
+def p_negative_number(p):
+    'expression : MINUS NUMBER'
+    p[0] = ParseNode("number", [], -1 * p[1])
 
 def p_expression_number(p):
     'expression : NUMBER'
@@ -386,27 +461,46 @@ class ImpParser:
         self.m_state.batch_size = 4
         return
     
-    def set_raw_prompt(self, raw_prompt):
-        self.m_raw = raw_prompt
+    @property
+    def raw_prompt(self):
+        return self.m_raw
+    
+    @raw_prompt.setter
+    def raw_prompt(self, value):
+        self.m_raw = value
         self.m_codes = []
         # Add strings between {{ and }} to codes
         rx = r'{{(?P<code>([^}]|}[^}])*)}}'
         for m in re.finditer(rx, self.m_raw):
             c = m.group('code')
             if (c is not None):
-                self.m_codes.append(ImpCode(c))
+                self.m_codes.append(ImpCode(c))        
 
-    def get_raw_prompt(self):
-        return self.m_raw
+    @property
+    def batch_size(self):
+        return self.m_state.batch_size
+    
+    @batch_size.setter
+    def batch_size(self, value):
+        self.m_state.batch_size = value
     
     def get_codes(self):
         return self.m_codes
     
-    def test_codes(self, iteration):
+    def get_all_prompts(self):
+        count = self.m_state.batch_size * self.m_state.batch_count
+        prompts = []
+        for i in range(0, count - 1):
+            prompts.append(self.produce_prompt(i))
+        return prompts
+
+    def get_token_prompt(self):
+        output = self.m_raw
         for c in self.m_codes:
-            # print(f"Running {c.get_raw_code()}")
-            res = c.get_tree().process(self.m_state, iteration)
-            print(f"Iter({iteration}): {res}")
+            res = " ".join(str(x) for x in c.get_tokens())
+            raw = "{{" + c.get_raw_code() + "}}"
+            output = output.replace(raw, str(res))
+        return output
 
     def produce_prompt(self, iteration):
         output = self.m_raw
@@ -427,12 +521,13 @@ class ImpParser:
 
 def test():
     parser = ImpParser()
-    parser.set_raw_prompt(r'A {{rnda(list(medium))}} by {{foreach(list(artist), 4)}} of {{update_c(nexta(list(artist)), 2)}} with {{rndi(1,5)}} heads.')
-    print(parser.describe_self())
-    print(parser.produce_prompt(0))
-    print(parser.produce_prompt(1))
-    print(parser.produce_prompt(2))
-    print(parser.produce_prompt(3))
-    print(parser.produce_prompt(4))
+    parser.raw_prompt = r'A {{rnda(list("medium"))}} by {{foreach(list("artist"), 4)}} of {{update_c(nexta(list("artist")), 2)}} with {{rndi(1,5)}} heads.'
+    parser.batch_size = 4
+    parser.batch_count = 2
+    # print(parser.get_token_prompt())
+    prompts = parser.get_all_prompts()
+    for p in prompts:
+        print(p)
+
 
 test()

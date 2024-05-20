@@ -6,9 +6,9 @@ _tabversion = '3.10'
 
 _lr_method = 'LALR'
 
-_lr_signature = 'COMMA ID LBRACKET LPAREN MINUS NUMBER RBRACKET RPAREN STRINGstatement : expressionexpression : STRINGexpression : NUMBERexpression : IDexpression : ID LPAREN arglist RPARENarglist : expression COMMA arglistarglist : expression'
+_lr_signature = 'COMMA FOREACH ID LBRACKET LIST LPAREN MINUS NUMBER RBRACKET RPAREN STRINGstatement : expressionstatement : FOREACH LPAREN foreachargs RPARENforeachargs : arrayforeachargs : array COMMA NUMBERforeachargs : array COMMA NUMBER COMMA NUMBERexpression : arrayarray : LIST LPAREN expression RPARENarray : LBRACKET arglist RBRACKETexpression : STRINGexpression : MINUS NUMBERexpression : NUMBERexpression : IDexpression : ID LPAREN arglist RPARENarglist : expression COMMA arglistarglist : expression'
     
-_lr_action_items = {'STRING':([0,6,10,],[3,3,3,]),'NUMBER':([0,6,10,],[4,4,4,]),'ID':([0,6,10,],[5,5,5,]),'$end':([1,2,3,4,5,9,],[0,-1,-2,-3,-4,-5,]),'COMMA':([3,4,5,8,9,],[-2,-3,-4,10,-5,]),'RPAREN':([3,4,5,7,8,9,11,],[-2,-3,-4,9,-7,-5,-6,]),'LPAREN':([5,],[6,]),}
+_lr_action_items = {'FOREACH':([0,],[3,]),'STRING':([0,10,13,14,22,],[5,5,5,5,5,]),'MINUS':([0,10,13,14,22,],[6,6,6,6,6,]),'NUMBER':([0,6,10,13,14,22,24,29,],[7,12,7,7,7,7,28,30,]),'ID':([0,10,13,14,22,],[8,8,8,8,8,]),'LIST':([0,10,11,13,14,22,],[9,9,9,9,9,9,]),'LBRACKET':([0,10,11,13,14,22,],[10,10,10,10,10,10,]),'$end':([1,2,4,5,7,8,12,21,23,25,26,],[0,-1,-6,-9,-11,-12,-10,-8,-2,-13,-7,]),'LPAREN':([3,8,9,],[11,13,14,]),'COMMA':([4,5,7,8,12,16,18,21,25,26,28,],[-6,-9,-11,-12,-10,22,24,-8,-13,-7,29,]),'RBRACKET':([4,5,7,8,12,15,16,21,25,26,27,],[-6,-9,-11,-12,-10,21,-15,-8,-13,-7,-14,]),'RPAREN':([4,5,7,8,12,16,17,18,19,20,21,25,26,27,28,30,],[-6,-9,-11,-12,-10,-15,23,-3,25,26,-8,-13,-7,-14,-4,-5,]),}
 
 _lr_action = {}
 for _k, _v in _lr_action_items.items():
@@ -17,7 +17,7 @@ for _k, _v in _lr_action_items.items():
       _lr_action[_x][_k] = _y
 del _lr_action_items
 
-_lr_goto_items = {'statement':([0,],[1,]),'expression':([0,6,10,],[2,8,8,]),'arglist':([6,10,],[7,11,]),}
+_lr_goto_items = {'statement':([0,],[1,]),'expression':([0,10,13,14,22,],[2,16,16,20,16,]),'array':([0,10,11,13,14,22,],[4,4,18,4,4,4,]),'arglist':([10,13,22,],[15,19,27,]),'foreachargs':([11,],[17,]),}
 
 _lr_goto = {}
 for _k, _v in _lr_goto_items.items():
@@ -27,11 +27,19 @@ for _k, _v in _lr_goto_items.items():
 del _lr_goto_items
 _lr_productions = [
   ("S' -> statement","S'",1,None,None,None),
-  ('statement -> expression','statement',1,'p_statement_expr','imp_parse.py',145),
-  ('expression -> STRING','expression',1,'p_expression_string','imp_parse.py',149),
-  ('expression -> NUMBER','expression',1,'p_expression_number','imp_parse.py',153),
-  ('expression -> ID','expression',1,'p_expression_id','imp_parse.py',157),
-  ('expression -> ID LPAREN arglist RPAREN','expression',4,'p_expression_func','imp_parse.py',161),
-  ('arglist -> expression COMMA arglist','arglist',3,'p_arglist_args','imp_parse.py',165),
-  ('arglist -> expression','arglist',1,'p_arglist_expr','imp_parse.py',170),
+  ('statement -> expression','statement',1,'p_statement_expr','imp_parse.py',302),
+  ('statement -> FOREACH LPAREN foreachargs RPAREN','statement',4,'p_statement_foreach','imp_parse.py',307),
+  ('foreachargs -> array','foreachargs',1,'p_foreachargs_onearg','imp_parse.py',311),
+  ('foreachargs -> array COMMA NUMBER','foreachargs',3,'p_foreachargs_twoarg','imp_parse.py',315),
+  ('foreachargs -> array COMMA NUMBER COMMA NUMBER','foreachargs',5,'p_foreachargs_threearg','imp_parse.py',319),
+  ('expression -> array','expression',1,'p_expression_array','imp_parse.py',323),
+  ('array -> LIST LPAREN expression RPAREN','array',4,'p_array_list','imp_parse.py',327),
+  ('array -> LBRACKET arglist RBRACKET','array',3,'p_array_const','imp_parse.py',331),
+  ('expression -> STRING','expression',1,'p_expression_string','imp_parse.py',335),
+  ('expression -> MINUS NUMBER','expression',2,'p_negative_number','imp_parse.py',339),
+  ('expression -> NUMBER','expression',1,'p_expression_number','imp_parse.py',343),
+  ('expression -> ID','expression',1,'p_expression_id','imp_parse.py',347),
+  ('expression -> ID LPAREN arglist RPAREN','expression',4,'p_expression_func','imp_parse.py',351),
+  ('arglist -> expression COMMA arglist','arglist',3,'p_arglist_args','imp_parse.py',355),
+  ('arglist -> expression','arglist',1,'p_arglist_expr','imp_parse.py',360),
 ]
