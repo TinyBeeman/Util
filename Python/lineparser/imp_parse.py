@@ -183,7 +183,10 @@ class ParseNode:
                 # foreach( array_cmd, [repeat = 1], [index = 0] )
                 lst = args[0]
                 argc = len(args)
-                repeat = args[1] if (argc >= 2) else 1
+                if (argc >= 2):
+                    repeat = args[1]
+                else:
+                    repeat = 1
 
                 self.m_local_iteration = self.m_local_iteration + 1
                 list_index = ( (self.m_local_iteration // repeat) % len(lst))
@@ -288,16 +291,17 @@ class ParseNode:
                 res = self.m_leaf
             case "neg_number":
                 res = -1 * self.m_leaf
-            case "number":
-                res = self.m_leaf
-            case "string":
+            case "constant":
                 res = self.m_leaf
             case "list":
                 res = state.get_list(pchildren[0].lower())
             case "foreach":
                 args = self.get_foreach_args(state)
                 res = self.run_func("foreach", args, global_iteration, state)
+            case "foreachargs":
+                res = pchildren[0]
             case _:
+                print(f"Unknown Type {self.m_type}")
                 res = pchildren[0]
 
         if (verbose_level() >= 2):
@@ -324,40 +328,20 @@ def p_statement_foreach(p):
     p[0] = ParseNode("foreach", [ p[3] ] )
 
 def p_foreachargs_onearg(p):
-    'foreachargs : array'
+    'foreachargs : expression'
     p[0] = ParseNode('foreachargs', [ p[1] ])
 
 def p_foreachargs_twoarg(p):
-    'foreachargs : array COMMA NUMBER'
-    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("number", [], p[3] ) ])
+    'foreachargs : expression COMMA NUMBER'
+    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("constant", [], p[3] ) ])
 
 def p_foreachargs_threearg(p):
-    'foreachargs : array COMMA NUMBER COMMA NUMBER'
-    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("number", [], p[3]), ParseNode("number", [], p[5] ) ] )
+    'foreachargs : expression COMMA NUMBER COMMA NUMBER'
+    p[0] = ParseNode('foreachargs', [ p[1], ParseNode("constant", [], p[3]), ParseNode("constant", [], p[5] ) ] )
 
-def p_expression_array(p):
-    'expression : array'
-    p[0] = ParseNode("array", [ p[1] ] )
-
-def p_array_list(p):
-    'array : LIST LPAREN expression RPAREN'
+def p_expression_list(p):
+    'expression : LIST LPAREN expression RPAREN'
     p[0] = ParseNode("list", [ p[3] ] )
-
-def p_array_const(p):
-    'array : LBRACKET arglist RBRACKET'
-    p[0] = ParseNode("const_array", [ p[2] ])
-
-def p_expression_string(p):
-    'expression : STRING'
-    p[0] = ParseNode("string", [], p[1].strip('"') )
-
-def p_negative_number(p):
-    'expression : MINUS NUMBER'
-    p[0] = ParseNode("number", [], -1 * p[1])
-
-def p_expression_number(p):
-    'expression : NUMBER'
-    p[0] = ParseNode("number", [], p[1] )
 
 def p_expression_id(p):
     'expression : ID'
@@ -375,6 +359,29 @@ def p_arglist_args(p):
 def p_arglist_expr(p):
     'arglist : expression'
     p[0] = ParseNode("arglist", [ p[1] ])
+
+# Constants
+
+def p_expression_constant(p):
+    'expression : constant'
+    p[0] = p[1]
+
+def p_constant_array(p):
+    'constant : LBRACKET arglist RBRACKET'
+    p[0] = ParseNode("constant", [], p[2])
+
+def p_constant_string(p):
+    'constant : STRING'
+    p[0] = ParseNode("constant", [], p[1].strip('"') )
+
+def p_constant_neg_number(p):
+    'constant : MINUS NUMBER'
+    p[0] = ParseNode("constant", [], -1 * p[1])
+
+def p_constant_number(p):
+    'constant : NUMBER'
+    p[0] = ParseNode("constant", [], p[1] )
+
 
 def p_error(p):
     print(f"Syntax error in input: {p}")

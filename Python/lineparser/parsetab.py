@@ -6,9 +6,9 @@ _tabversion = '3.10'
 
 _lr_method = 'LALR'
 
-_lr_signature = 'COMMA FOREACH ID LBRACKET LIST LPAREN MINUS NUMBER RBRACKET RPAREN STRINGstatement : expressionstatement : FOREACH LPAREN foreachargs RPARENforeachargs : arrayforeachargs : array COMMA NUMBERforeachargs : array COMMA NUMBER COMMA NUMBERexpression : arrayarray : LIST LPAREN expression RPARENarray : LBRACKET arglist RBRACKETexpression : STRINGexpression : MINUS NUMBERexpression : NUMBERexpression : IDexpression : ID LPAREN arglist RPARENarglist : expression COMMA arglistarglist : expression'
+_lr_signature = 'COMMA FOREACH ID LBRACKET LIST LPAREN MINUS NUMBER RBRACKET RPAREN STRINGstatement : expressionstatement : FOREACH LPAREN foreachargs RPARENforeachargs : expressionforeachargs : expression COMMA NUMBERforeachargs : expression COMMA NUMBER COMMA NUMBERexpression : LIST LPAREN expression RPARENexpression : IDexpression : ID LPAREN arglist RPARENarglist : expression COMMA arglistarglist : expressionexpression : constantconstant : LBRACKET arglist RBRACKETconstant : STRINGconstant : MINUS NUMBERconstant : NUMBER'
     
-_lr_action_items = {'FOREACH':([0,],[3,]),'STRING':([0,10,13,14,22,],[5,5,5,5,5,]),'MINUS':([0,10,13,14,22,],[6,6,6,6,6,]),'NUMBER':([0,6,10,13,14,22,24,29,],[7,12,7,7,7,7,28,30,]),'ID':([0,10,13,14,22,],[8,8,8,8,8,]),'LIST':([0,10,11,13,14,22,],[9,9,9,9,9,9,]),'LBRACKET':([0,10,11,13,14,22,],[10,10,10,10,10,10,]),'$end':([1,2,4,5,7,8,12,21,23,25,26,],[0,-1,-6,-9,-11,-12,-10,-8,-2,-13,-7,]),'LPAREN':([3,8,9,],[11,13,14,]),'COMMA':([4,5,7,8,12,16,18,21,25,26,28,],[-6,-9,-11,-12,-10,22,24,-8,-13,-7,29,]),'RBRACKET':([4,5,7,8,12,15,16,21,25,26,27,],[-6,-9,-11,-12,-10,21,-15,-8,-13,-7,-14,]),'RPAREN':([4,5,7,8,12,16,17,18,19,20,21,25,26,27,28,30,],[-6,-9,-11,-12,-10,-15,23,-3,25,26,-8,-13,-7,-14,-4,-5,]),}
+_lr_action_items = {'FOREACH':([0,],[3,]),'LIST':([0,7,11,12,13,22,],[4,4,4,4,4,4,]),'ID':([0,7,11,12,13,22,],[5,5,5,5,5,5,]),'LBRACKET':([0,7,11,12,13,22,],[7,7,7,7,7,7,]),'STRING':([0,7,11,12,13,22,],[8,8,8,8,8,8,]),'MINUS':([0,7,11,12,13,22,],[9,9,9,9,9,9,]),'NUMBER':([0,7,9,11,12,13,22,24,29,],[10,10,16,10,10,10,10,28,30,]),'$end':([1,2,5,6,8,10,16,21,23,25,26,],[0,-1,-7,-11,-13,-15,-14,-12,-2,-6,-8,]),'LPAREN':([3,4,5,],[11,12,13,]),'COMMA':([5,6,8,10,15,16,18,21,25,26,28,],[-7,-11,-13,-15,22,-14,24,-12,-6,-8,29,]),'RBRACKET':([5,6,8,10,14,15,16,21,25,26,27,],[-7,-11,-13,-15,21,-10,-14,-12,-6,-8,-9,]),'RPAREN':([5,6,8,10,15,16,17,18,19,20,21,25,26,27,28,30,],[-7,-11,-13,-15,-10,-14,23,-3,25,26,-12,-6,-8,-9,-4,-5,]),}
 
 _lr_action = {}
 for _k, _v in _lr_action_items.items():
@@ -17,7 +17,7 @@ for _k, _v in _lr_action_items.items():
       _lr_action[_x][_k] = _y
 del _lr_action_items
 
-_lr_goto_items = {'statement':([0,],[1,]),'expression':([0,10,13,14,22,],[2,16,16,20,16,]),'array':([0,10,11,13,14,22,],[4,4,18,4,4,4,]),'arglist':([10,13,22,],[15,19,27,]),'foreachargs':([11,],[17,]),}
+_lr_goto_items = {'statement':([0,],[1,]),'expression':([0,7,11,12,13,22,],[2,15,18,19,15,15,]),'constant':([0,7,11,12,13,22,],[6,6,6,6,6,6,]),'arglist':([7,13,22,],[14,20,27,]),'foreachargs':([11,],[17,]),}
 
 _lr_goto = {}
 for _k, _v in _lr_goto_items.items():
@@ -27,19 +27,19 @@ for _k, _v in _lr_goto_items.items():
 del _lr_goto_items
 _lr_productions = [
   ("S' -> statement","S'",1,None,None,None),
-  ('statement -> expression','statement',1,'p_statement_expr','imp_parse.py',302),
-  ('statement -> FOREACH LPAREN foreachargs RPAREN','statement',4,'p_statement_foreach','imp_parse.py',307),
-  ('foreachargs -> array','foreachargs',1,'p_foreachargs_onearg','imp_parse.py',311),
-  ('foreachargs -> array COMMA NUMBER','foreachargs',3,'p_foreachargs_twoarg','imp_parse.py',315),
-  ('foreachargs -> array COMMA NUMBER COMMA NUMBER','foreachargs',5,'p_foreachargs_threearg','imp_parse.py',319),
-  ('expression -> array','expression',1,'p_expression_array','imp_parse.py',323),
-  ('array -> LIST LPAREN expression RPAREN','array',4,'p_array_list','imp_parse.py',327),
-  ('array -> LBRACKET arglist RBRACKET','array',3,'p_array_const','imp_parse.py',331),
-  ('expression -> STRING','expression',1,'p_expression_string','imp_parse.py',335),
-  ('expression -> MINUS NUMBER','expression',2,'p_negative_number','imp_parse.py',339),
-  ('expression -> NUMBER','expression',1,'p_expression_number','imp_parse.py',343),
-  ('expression -> ID','expression',1,'p_expression_id','imp_parse.py',347),
-  ('expression -> ID LPAREN arglist RPAREN','expression',4,'p_expression_func','imp_parse.py',351),
-  ('arglist -> expression COMMA arglist','arglist',3,'p_arglist_args','imp_parse.py',355),
-  ('arglist -> expression','arglist',1,'p_arglist_expr','imp_parse.py',360),
+  ('statement -> expression','statement',1,'p_statement_expr','imp_parse.py',319),
+  ('statement -> FOREACH LPAREN foreachargs RPAREN','statement',4,'p_statement_foreach','imp_parse.py',324),
+  ('foreachargs -> expression','foreachargs',1,'p_foreachargs_onearg','imp_parse.py',328),
+  ('foreachargs -> expression COMMA NUMBER','foreachargs',3,'p_foreachargs_twoarg','imp_parse.py',332),
+  ('foreachargs -> expression COMMA NUMBER COMMA NUMBER','foreachargs',5,'p_foreachargs_threearg','imp_parse.py',336),
+  ('expression -> LIST LPAREN expression RPAREN','expression',4,'p_expression_list','imp_parse.py',340),
+  ('expression -> ID','expression',1,'p_expression_id','imp_parse.py',344),
+  ('expression -> ID LPAREN arglist RPAREN','expression',4,'p_expression_func','imp_parse.py',348),
+  ('arglist -> expression COMMA arglist','arglist',3,'p_arglist_args','imp_parse.py',352),
+  ('arglist -> expression','arglist',1,'p_arglist_expr','imp_parse.py',357),
+  ('expression -> constant','expression',1,'p_expression_constant','imp_parse.py',363),
+  ('constant -> LBRACKET arglist RBRACKET','constant',3,'p_constant_array','imp_parse.py',367),
+  ('constant -> STRING','constant',1,'p_constant_string','imp_parse.py',371),
+  ('constant -> MINUS NUMBER','constant',2,'p_constant_neg_number','imp_parse.py',375),
+  ('constant -> NUMBER','constant',1,'p_constant_number','imp_parse.py',379),
 ]
