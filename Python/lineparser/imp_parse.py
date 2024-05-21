@@ -57,7 +57,7 @@ t_LPAREN = r'\('
 t_RPAREN = r'\)'
 t_STRING = r'".*?"'
 t_LBRACKET = r'\['
-t_RBRACKET = r'\['
+t_RBRACKET = r'\]'
 t_COMMA = r','
 
 
@@ -87,6 +87,7 @@ def t_error(t):
     t.lexer.skip(1)
 
 
+g_debug_lexer = False
 g_lexer = lex.lex()
 
 def verbose_level():
@@ -101,6 +102,7 @@ class ImpState:
     m_medium = None
     m_batch_size = 1
     m_batch_count = 1
+    m_prompt_count = 1
     m_vars = None
 
     def __init__(self):
@@ -123,6 +125,14 @@ class ImpState:
     @batch_count.setter
     def batch_count(self, value):
         self.m_batch_count = value
+
+    @property
+    def prompt_count(self):
+        return self.m_prompt_count
+    
+    @prompt_count.setter
+    def prompt_count(self, value):
+        self.m_prompt_count = value
 
     def check_args(args, allowed):
         if (isinstance(allowed, list)):
@@ -148,17 +158,11 @@ class ImpState:
                 return self.m_medium
         return [ "Missing List " + name ]
 
-
 class ParseNode:
     m_children = None
     m_last_value = None
     m_local_iteration = -1
     m_is_constant = None
-
-    # foreach arguments
-    m_foreach_list_count = -1
-    m_foreach_repeat = -1
-    m_index = -1
 
     def __init__(self, type, children=None, leaf=None):
         self.m_type = type
@@ -173,18 +177,6 @@ class ParseNode:
 
     def run_func(self, id, args, global_iteration, state):
         match id.lower():
-            case 'foreach':
-                # foreach( array_cmd, [repeat = 1], [index = 0] )
-                lst = args[0]
-                argc = len(args)
-                if (argc >= 2):
-                    repeat = args[1]
-                else:
-                    repeat = 1
-
-                self.m_local_iteration = self.m_local_iteration + 1
-                list_index = ( (self.m_local_iteration // repeat) % len(lst))
-                return args[0][list_index]
             case 'nexta':
                 # nexta(array_cmd, [tag_name]) returns the next item in an array, starting with 0, wrapping around if needed
                 self.m_local_iteration = self.m_local_iteration + 1
@@ -204,15 +196,153 @@ class ParseNode:
                 return args[0]
             case _:
                 return f"{id} Function Not Yet Implemented"
-
     
+    def get_value_no_iteration(self, state: ImpState, global_iteration = 0, stack_depth=0 ):
+        if (self.m_last_value != None):
+            return self.m_last_value
+        else:
+            return self.process(state, global_iteration, stack_depth)
+
+    # Returns true if this node's results never change
+    def is_constant(self):
+        if (self.m_is_constant is None):
+            match self.m_type:
+                case "func":
+                    match self.m_leaf:
+                        case 'rndi' | 'rnda' | 'nexta':
+                            self.m_is_constant = False
+                            self.m_is_constant
+                case "id":
+                    self.m_is_constant = False
+                    return self.m_is_constant
+                case 'constant' | 'list':
+                    self.m_is_constant = True
+
+            if (self.m_is_constant is None):
+                for c in self.m_children:
+                    if not c.is_constant():
+                        self.m_is_constant = False
+
+            if (self.m_is_constant is None):
+                self.m_is_constant = True
+        return self.m_is_constant
+
+    def process_children(self, state, global_iteration, stack_depth):
+        # No short circuiting for now
+        processed_children = []
+        try:
+            for child in self.m_children:
+                if (isinstance(child, ParseNode)):
+                    processed_children.append(child.process(state, global_iteration, stack_depth+1))
+                else:
+                    processed_children.append(child)
+        except TypeError as te:
+            print(f"self.m_children is not iterable in {self.m_type}")
+        return processed_children
+
+
+    def process_this(self, processed_children, state: ImpState, global_iteration, stack_depth):
+        res = None
+        match self.m_type:
+            case "func":
+                res = self.run_func(self.m_leaf, processed_children[0], global_iteration, state)
+            case "arglist":
+                res = processed_children
+            case "array":
+                res = processed_children[0]
+            case "id":
+                match self.m_leaf:
+                    case "batch_size":
+                        res = state.batch_size
+                    case "batch_count":
+                        res =  state.batch_count
+                    case "iteration":
+                        res = global_iteration
+                    case "prompt_count":
+                        res = state.prompt_count
+                    case _:
+                        res = self.m_leaf
+            case "constant":
+                res = self.m_leaf    
+            case "list":
+                res = state.get_list(processed_children[0].lower())
+            case "foreachargs":
+                res = processed_children[0]
+            case "passthru":
+                res = processed_children[0]
+            case _:
+                print(f"Unknown Type {self.m_type}")
+                res = processed_children[0]
+
+        return res
+
+
+    def process(self, state: ImpState, global_iteration, stack_depth=0):
+        tab = ' ' * stack_depth
+        leafstring = ('(' + str(self.m_leaf) + ')') if self.m_leaf is not None else ''
+        nodestring = f"{self.m_type + leafstring} node"
+        if (verbose_level() >= 2):
+            print(f"{tab}Begin processing {nodestring}.")
+
+        # Do we really need to run this again?
+        if (self.m_last_value is None or not self.is_constant()):
+            # Two short circuiting options:
+            # update_b and update_c can cause us to skip
+            # updating the children, so we want to do some special work to skip
+            # and return the last used value.
+            if (self.m_type == "func"):
+                match self.m_leaf.lower():
+                    case 'update_b':
+                        if (global_iteration % state.batch_size != 0 and self.m_last_value != None):
+                            return self.m_last_value
+                    case 'update_c':
+                        # We have to process the tree that represents c (2nds argument) early
+                        # in case we don't want to process the first argument
+                        # child 0 is arglist, child 1 is the second argument of arglist
+                        c = self.m_children[0].m_children[1].process(state, global_iteration, stack_depth + 2)
+                        if (global_iteration % c == 0):
+                            self.m_last_value = self.m_children[0].m_children[0].process(state, global_iteration, stack_depth + 2)
+                        return self.m_last_value
+
+            processed_children = self.process_children(state, global_iteration, stack_depth)
+            self.m_last_value = self.process_this(processed_children, state, global_iteration, stack_depth)
+        
+        if (verbose_level() >= 2):
+                print(f"{tab}{nodestring} returning {self.m_last_value}")
+        return self.m_last_value
+
+    def describe_self(self):
+        children = "[ "
+        for c in self.m_children:
+            children += c.describe_self()
+        children += " ]"
+        return f"ParseNode( { self.m_type }, leaf={ self.m_leaf }, children={children} )"
+    
+
+class ParseNodeRoot(ParseNode):
+    
+    # Passed by argument to foreach, determines the order this code snippet should be processed
+    # TODO: Need to make use of this for using tags as well, most likely?
+    m_index = 0 
+
+    # The original order this code appears in the prompt
+    m_original_index = 0
+
+    # foreach arguments
+    m_foreach_list_count: int = -1 # count of items in a foreach array
+    m_foreach_repeat: int = 1 # Passed by argument, defaults to 1
+    m_foreach_multiplier: int = 1 # Calculated value for how many times this should repeat itself due to other "foreach" statements
+    
+
+    def __init__(self, type, children=None, leaf=None):
+        super().__init__(type, children, leaf)
+
     def get_foreach_args(self, state):
         args = len(self.m_children[0].m_children)
         list_count = 0
         repeat = 1
         index = 0
         lst = self.m_children[0].m_children[0].get_value_no_iteration(state)
-        list_count = len(lst)
         if (args >= 2):
             repeat = self.m_children[0].m_children[1].get_value_no_iteration(state)
         if (args >= 3):
@@ -222,9 +352,8 @@ class ParseNode:
     def preprocess(self, state: ImpState, stack_depth=0):
         # foreach( array_cmd, [repeat = 1], [index = 0] )
         if self.m_type == "foreach":
-            # assert(self.m_children[0].m_type == "foreachargs")
-            # Expression: self.m_children[0].m_children[0]
             rg_args = self.get_foreach_args(state)
+            print(rg_args[0])
             self.m_foreach_list_count = len(rg_args[0])
             self.m_foreach_repeat = rg_args[1]
             self.m_index = rg_args[2]
@@ -233,134 +362,69 @@ class ParseNode:
             self.m_foreach_repeat = 0
             self.m_index = 0
 
-    def get_value_no_iteration(self, state: ImpState, global_iteration = 0, stack_depth=0 ):
-        if (self.m_last_value != None):
-            return self.m_last_value
-        else:
-            return self.process(state, global_iteration, stack_depth)
-
-    # Returns true if this node's results never change
     def is_constant(self):
-        if (self.m_is_constant is not None):
-            return self.m_is_constant
+        if (self.m_type == 'foreach'):
+            self.m_is_constant = False
+            return False
+        return super().is_constant()
+    
+    def run_func(self, id, args, global_iteration, state):
+        if (id == "foreach"):
+            args = self.get_foreach_args(state)
+            lst = args[0]
+            self.m_local_iteration = self.m_local_iteration + 1
+            list_index = ( (self.m_local_iteration // (self.m_foreach_repeat * self.m_foreach_multiplier) ) % len(lst))
+            return args[0][list_index]
         
-        match self.m_type:
-            case "func":
-                match self.m_leaf:
-                    case 'rndi' | 'rnda' | 'nexta' :
-                        self.m_is_constant = False
-                        return False
-            case 'constant' | 'id' | 'list':
-                self.m_is_constant = True
-            case 'foreach':
-                self.m_is_constant = False
-
-        if (self.m_is_constant is None):
-            for c in self.m_children:
-                if not c.is_constant():
-                    self.m_is_constant = False
-
-        if (self.m_is_constant is None):
-            self.m_is_constant = True
-        return self.m_is_constant
-
-    def process(self, state: ImpState, global_iteration, stack_depth=0):
-        # Do we really need to run this again?
-        if (self.m_last_value is not None and self.is_constant()):
-            # self.m_children = None
-            return self.m_last_value
-        
-        pchildren = []
-        leafstring = ('(' + str(self.m_leaf) + ')') if self.m_leaf is not None else ''
-        nodestring = f"{self.m_type + leafstring} node"
-        tab = ' ' * stack_depth
-        
-        
-        if (verbose_level() >= 2):
-            print(f"{tab}Begin processing {nodestring}.")
-
-        # skip update_b and update_c processing of children if needed.
-        if (self.m_type == "func"):
-            match self.m_leaf.lower():
-                case 'update_b':
-                    if (global_iteration % state.batch_size == 0):
-                        self.m_last_value = self.m_children[0].m_children[0].process(state, global_iteration, stack_depth + 2)
-                    return self.m_last_value
-                case 'update_c':
-                    # We have to process the tree that represents c early
-                    # HACK
-                    c = self.m_children[0].m_children[1].process(state, global_iteration, stack_depth + 2)
-                    # c = self.m_children[1].process(state, global_iteration, stack_depth + 1)-
-                    if (global_iteration % c == 0):
-                        self.m_last_value = self.m_children[0].m_children[0].process(state, global_iteration, stack_depth + 2)
-                    return self.m_last_value
-
-        # No short circuiting for now
-        try:
-            for child in self.m_children:
-                if (isinstance(child, ParseNode)):
-                    pchildren.append(child.process(state, global_iteration, stack_depth+1))
-                else:
-                    pchildren.append(child)
-        except TypeError as te:
-            print(f"self.m_children is not iterable in {self.m_type}")
-
-        res = None
-        match self.m_type:
-            case "func":
-                # arglist in pchildren[0]
-                res = self.run_func(self.m_leaf, pchildren[0], global_iteration, state)
-            case "arglist":
-                res = pchildren
-            case "id":
-                res = self.m_leaf
-            case "constant":
-                res = self.m_leaf
-            case "list":
-                res = state.get_list(pchildren[0].lower())
-            case "foreach":
-                args = self.get_foreach_args(state)
-                res = self.run_func("foreach", args, global_iteration, state)
-            case "foreachargs":
-                res = pchildren[0]
-            case _:
-                print(f"Unknown Type {self.m_type}")
-                res = pchildren[0]
-
-        if (verbose_level() >= 2):
-            print(f"{tab}{nodestring} returning {res}")
-
-        self.m_last_value = res
-        return res
-
-
-    def describe_self(self):
-        children = "[ "
-        for c in self.m_children:
-            children += c.describe_self()
-        children += " ]"
-        return f"ParseNode( { self.m_type }, leaf={ self.m_leaf }, children={children} )"
+        return super().run_func(id, args, global_iteration, state)
+    
+    def process_this(self, processed_children, state: ImpState, global_iteration, stack_depth):
+        if (self.m_type == "foreach"):
+            args = self.get_foreach_args(state)
+            res = self.run_func("foreach", args, global_iteration, state)
+            return res
+        return super().process_this(processed_children, state, global_iteration, stack_depth)
     
     @property
     def foreach_list_count(self):
         return self.m_foreach_list_count
-    
+
+    @property
+    def foreach_multiplier(self):
+        return self.m_foreach_multiplier
+
+    @foreach_multiplier.setter
+    def foreach_multiplier(self, value: int):
+        self.m_foreach_multiplier = value
+
     @property
     def foreach_repeat(self):
         return self.m_foreach_repeat
+
+    @property
+    def original_index(self):
+        return self.m_original_index
     
+    @original_index.setter
+    def original_index(self, value: int):
+        self.m_original_index = value
+
     @property
     def index(self):
         return self.m_index
 
+    @property
+    def sort_key(self):
+        return 0xFF * self.index + self.original_index
+
 def p_statement_expr(p):
     'statement : expression'
-    p[0] = p[1]
+    p[0] = ParseNodeRoot("passthru", [ p[1] ] )
 
 # foreach( array_cmd, [repeat = 1], [index = 0] )
 def p_statement_foreach(p):
     'statement : FOREACH LPAREN foreachargs RPAREN'
-    p[0] = ParseNode("foreach", [ p[3] ] )
+    p[0] = ParseNodeRoot("foreach", [ p[3] ] )
 
 def p_foreachargs_onearg(p):
     'foreachargs : expression'
@@ -373,10 +437,6 @@ def p_foreachargs_twoarg(p):
 def p_foreachargs_threearg(p):
     'foreachargs : expression COMMA NUMBER COMMA NUMBER'
     p[0] = ParseNode('foreachargs', [ p[1], ParseNode("constant", [], p[3]), ParseNode("constant", [], p[5] ) ] )
-
-def p_expression_list(p):
-    'expression : LIST LPAREN expression RPAREN'
-    p[0] = ParseNode("list", [ p[3] ] )
 
 def p_expression_id(p):
     'expression : ID'
@@ -395,15 +455,26 @@ def p_arglist_expr(p):
     'arglist : expression'
     p[0] = ParseNode("arglist", [ p[1] ])
 
+# Arrays
+
+def p_expression_array(p):
+    'expression : array'
+    p[0] = p[1]
+
+def p_array(p):
+    'array : LBRACKET arglist RBRACKET'
+    p[0] = ParseNode("array", [ p[2]])
+
+def p_expression_list(p):
+    'array : LIST LPAREN expression RPAREN'
+    p[0] = ParseNode("list", [ p[3] ] )
+
+
 # Constants
 
 def p_expression_constant(p):
     'expression : constant'
     p[0] = p[1]
-
-def p_constant_array(p):
-    'constant : LBRACKET arglist RBRACKET'
-    p[0] = ParseNode("constant", [], p[2])
 
 def p_constant_string(p):
     'constant : STRING'
@@ -429,24 +500,28 @@ g_parser = yacc.yacc()
 class ImpCode:
     m_raw = ""
     m_tokens = None
-    m_tree = None
+    m_tree:ParseNodeRoot = None
     m_db = None
+    m_orig_index = 0
 
-    def __init__(self, raw_code):
+    def __init__(self, raw_code, orig_index):
         global g_lexer
+        global g_debug_lexer
 
         self.m_raw = raw_code
         self.m_tokens = []
         self.m_tree = None
-
-        g_lexer.input(self.m_raw)
-        while True:
-            tok = g_lexer.token()
-            if not tok:
-                break
-            self.m_tokens.append(tok)
+        self.m_orig_index = orig_index
 
     def get_tokens(self):        
+        if (len(self.m_tokens) == 0):
+            g_lexer.input(self.m_raw)
+            while True:
+                tok = g_lexer.token()
+                if not tok:
+                    break
+                self.m_tokens.append(tok)
+
         return self.m_tokens
     
     def get_raw_code(self):
@@ -459,16 +534,17 @@ class ImpCode:
         s += "\n"
         return s        
     
-    def get_tree(self) -> ParseNode:
+    def get_parse_root(self) -> ParseNodeRoot:
         global g_parser
         if (self.m_tree is None):
-            try:
+            #try:
                 self.m_tree = g_parser.parse(self.m_raw)
-            except Exception as ex:
-                print(f"Parse Exception parsing {self.m_raw}")
-                print(type(ex))
-                print(ex.args)
-                print(ex)
+                self.m_tree.original_index = self.m_orig_index
+            #except Exception as ex:
+            #    print(f"Parse Exception parsing {self.m_raw}")
+            #    print(type(ex))
+            #    print(ex.args)
+            #    print(ex)
         return self.m_tree
 
 
@@ -519,10 +595,12 @@ class ImpParser:
         self.m_codes = []
         # Add strings between {{ and }} to codes
         rx = r'{{(?P<code>([^}]|}[^}])*)}}'
+        i = 0
         for m in re.finditer(rx, self.m_raw):
             c = m.group('code')
             if (c is not None):
-                self.m_codes.append(ImpCode(c))    
+                self.m_codes.append(ImpCode(c, i))
+                i += 1
 
     @property
     def batch_size(self):
@@ -540,17 +618,21 @@ class ImpParser:
 
         foreach_count = 1
         for c in self.m_codes:
-            tree = c.get_tree()
-            tree.preprocess(self.m_state)
-        self.m_codes.sort(key=lambda code: code.get_tree().index )
+            c.get_parse_root().preprocess(self.m_state)
+        
+        self.m_codes.sort(key=lambda code: code.get_parse_root().sort_key, reverse = True )
         
         for c in self.m_codes:
-            if tree.foreach_list_count > 0:
-                # TODO: Increase repeat count to allow for multipliers
-                foreach_count = foreach_count * tree.foreach_list_count * tree.foreach_repeat
+            rootnode:ParseNodeRoot = c.get_parse_root()
+            if rootnode.foreach_list_count > 0:
+                # Each successive for-each needs to hold its value as the previous for-each's iterate:
+                # hence, the multiplier
+                rootnode.foreach_multiplier = foreach_count
+                foreach_count = foreach_count * rootnode.foreach_list_count * rootnode.foreach_repeat
                 count = foreach_count
 
         prompts = []
+        self.m_state.prompt_count = count
         for i in range(0, count):
             prompts.append(self.produce_prompt(i))
         return prompts
@@ -566,7 +648,7 @@ class ImpParser:
     def produce_prompt(self, iteration):
         output = self.m_raw
         for c in self.m_codes:
-            res = c.get_tree().process(self.m_state, iteration)
+            res = c.get_parse_root().process(self.m_state, iteration)
             raw = "{{" + c.get_raw_code() + "}}"
             output = output.replace(raw, str(res))
         return output
@@ -582,7 +664,7 @@ class ImpParser:
 def test():
     parser = ImpParser()
     # parser.raw_prompt = r'A {{rnda(list("medium"))}} by {{foreach(list("artist"), 3)}} of {{update_b(nexta(list("artist")))}} with {{rndi(1,5)}} heads.'
-    parser.raw_prompt = r'A {{foreach(list("medium"))}} by {{foreach(list("artist"), 3)}}.'
+    parser.raw_prompt = r'A {{foreach(list(artist))}} by {{foreach(["a","b"], 4)}}, {{iteration}}/{{prompt_count}}.'
     parser.batch_size = 4
     parser.batch_count = 2
     # print(parser.get_token_prompt())

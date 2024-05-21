@@ -8,37 +8,39 @@ Rule 2     statement -> FOREACH LPAREN foreachargs RPAREN
 Rule 3     foreachargs -> expression
 Rule 4     foreachargs -> expression COMMA NUMBER
 Rule 5     foreachargs -> expression COMMA NUMBER COMMA NUMBER
-Rule 6     expression -> LIST LPAREN expression RPAREN
-Rule 7     expression -> ID
-Rule 8     expression -> ID LPAREN arglist RPAREN
-Rule 9     arglist -> expression COMMA arglist
-Rule 10    arglist -> expression
-Rule 11    expression -> constant
-Rule 12    constant -> LBRACKET arglist RBRACKET
-Rule 13    constant -> STRING
-Rule 14    constant -> MINUS NUMBER
-Rule 15    constant -> NUMBER
+Rule 6     expression -> ID
+Rule 7     expression -> ID LPAREN arglist RPAREN
+Rule 8     arglist -> expression COMMA arglist
+Rule 9     arglist -> expression
+Rule 10    expression -> array
+Rule 11    array -> LBRACKET arglist RBRACKET
+Rule 12    array -> LIST LPAREN expression RPAREN
+Rule 13    expression -> constant
+Rule 14    constant -> STRING
+Rule 15    constant -> MINUS NUMBER
+Rule 16    constant -> NUMBER
 
 Terminals, with rules where they appear
 
-COMMA                : 4 5 5 9
+COMMA                : 4 5 5 8
 FOREACH              : 2
-ID                   : 7 8
-LBRACKET             : 12
-LIST                 : 6
-LPAREN               : 2 6 8
-MINUS                : 14
-NUMBER               : 4 5 5 14 15
-RBRACKET             : 12
-RPAREN               : 2 6 8
-STRING               : 13
+ID                   : 6 7
+LBRACKET             : 11
+LIST                 : 12
+LPAREN               : 2 7 12
+MINUS                : 15
+NUMBER               : 4 5 5 15 16
+RBRACKET             : 11
+RPAREN               : 2 7 12
+STRING               : 14
 error                : 
 
 Nonterminals, with rules where they appear
 
-arglist              : 8 9 12
-constant             : 11
-expression           : 1 3 4 5 6 9 10
+arglist              : 7 8 11
+array                : 10
+constant             : 13
+expression           : 1 3 4 5 8 9 12
 foreachargs          : 2
 statement            : 0
 
@@ -49,25 +51,27 @@ state 0
     (0) S' -> . statement
     (1) statement -> . expression
     (2) statement -> . FOREACH LPAREN foreachargs RPAREN
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
     FOREACH         shift and go to state 3
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
+    ID              shift and go to state 4
     LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
     statement                      shift and go to state 1
     expression                     shift and go to state 2
+    array                          shift and go to state 5
     constant                       shift and go to state 6
 
 state 1
@@ -87,316 +91,336 @@ state 3
 
     (2) statement -> FOREACH . LPAREN foreachargs RPAREN
 
-    LPAREN          shift and go to state 11
+    LPAREN          shift and go to state 12
 
 
 state 4
 
-    (6) expression -> LIST . LPAREN expression RPAREN
+    (6) expression -> ID .
+    (7) expression -> ID . LPAREN arglist RPAREN
 
-    LPAREN          shift and go to state 12
+    $end            reduce using rule 6 (expression -> ID .)
+    COMMA           reduce using rule 6 (expression -> ID .)
+    RBRACKET        reduce using rule 6 (expression -> ID .)
+    RPAREN          reduce using rule 6 (expression -> ID .)
+    LPAREN          shift and go to state 13
 
 
 state 5
 
-    (7) expression -> ID .
-    (8) expression -> ID . LPAREN arglist RPAREN
+    (10) expression -> array .
 
-    $end            reduce using rule 7 (expression -> ID .)
-    COMMA           reduce using rule 7 (expression -> ID .)
-    RBRACKET        reduce using rule 7 (expression -> ID .)
-    RPAREN          reduce using rule 7 (expression -> ID .)
-    LPAREN          shift and go to state 13
+    $end            reduce using rule 10 (expression -> array .)
+    COMMA           reduce using rule 10 (expression -> array .)
+    RBRACKET        reduce using rule 10 (expression -> array .)
+    RPAREN          reduce using rule 10 (expression -> array .)
 
 
 state 6
 
-    (11) expression -> constant .
+    (13) expression -> constant .
 
-    $end            reduce using rule 11 (expression -> constant .)
-    COMMA           reduce using rule 11 (expression -> constant .)
-    RBRACKET        reduce using rule 11 (expression -> constant .)
-    RPAREN          reduce using rule 11 (expression -> constant .)
+    $end            reduce using rule 13 (expression -> constant .)
+    COMMA           reduce using rule 13 (expression -> constant .)
+    RBRACKET        reduce using rule 13 (expression -> constant .)
+    RPAREN          reduce using rule 13 (expression -> constant .)
 
 
 state 7
 
-    (12) constant -> LBRACKET . arglist RBRACKET
-    (9) arglist -> . expression COMMA arglist
-    (10) arglist -> . expression
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
+    (11) array -> LBRACKET . arglist RBRACKET
+    (8) arglist -> . expression COMMA arglist
+    (9) arglist -> . expression
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
+    ID              shift and go to state 4
     LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
     arglist                        shift and go to state 14
     expression                     shift and go to state 15
+    array                          shift and go to state 5
     constant                       shift and go to state 6
 
 state 8
 
-    (13) constant -> STRING .
+    (12) array -> LIST . LPAREN expression RPAREN
 
-    $end            reduce using rule 13 (constant -> STRING .)
-    COMMA           reduce using rule 13 (constant -> STRING .)
-    RBRACKET        reduce using rule 13 (constant -> STRING .)
-    RPAREN          reduce using rule 13 (constant -> STRING .)
+    LPAREN          shift and go to state 16
 
 
 state 9
 
-    (14) constant -> MINUS . NUMBER
+    (14) constant -> STRING .
 
-    NUMBER          shift and go to state 16
+    $end            reduce using rule 14 (constant -> STRING .)
+    COMMA           reduce using rule 14 (constant -> STRING .)
+    RBRACKET        reduce using rule 14 (constant -> STRING .)
+    RPAREN          reduce using rule 14 (constant -> STRING .)
 
 
 state 10
 
-    (15) constant -> NUMBER .
+    (15) constant -> MINUS . NUMBER
 
-    $end            reduce using rule 15 (constant -> NUMBER .)
-    COMMA           reduce using rule 15 (constant -> NUMBER .)
-    RBRACKET        reduce using rule 15 (constant -> NUMBER .)
-    RPAREN          reduce using rule 15 (constant -> NUMBER .)
+    NUMBER          shift and go to state 17
 
 
 state 11
+
+    (16) constant -> NUMBER .
+
+    $end            reduce using rule 16 (constant -> NUMBER .)
+    COMMA           reduce using rule 16 (constant -> NUMBER .)
+    RBRACKET        reduce using rule 16 (constant -> NUMBER .)
+    RPAREN          reduce using rule 16 (constant -> NUMBER .)
+
+
+state 12
 
     (2) statement -> FOREACH LPAREN . foreachargs RPAREN
     (3) foreachargs -> . expression
     (4) foreachargs -> . expression COMMA NUMBER
     (5) foreachargs -> . expression COMMA NUMBER COMMA NUMBER
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
+    ID              shift and go to state 4
     LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
-    foreachargs                    shift and go to state 17
-    expression                     shift and go to state 18
-    constant                       shift and go to state 6
-
-state 12
-
-    (6) expression -> LIST LPAREN . expression RPAREN
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
-
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
-    LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
-
+    foreachargs                    shift and go to state 18
     expression                     shift and go to state 19
+    array                          shift and go to state 5
     constant                       shift and go to state 6
 
 state 13
 
-    (8) expression -> ID LPAREN . arglist RPAREN
-    (9) arglist -> . expression COMMA arglist
-    (10) arglist -> . expression
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
+    (7) expression -> ID LPAREN . arglist RPAREN
+    (8) arglist -> . expression COMMA arglist
+    (9) arglist -> . expression
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
+    ID              shift and go to state 4
     LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
     arglist                        shift and go to state 20
     expression                     shift and go to state 15
+    array                          shift and go to state 5
     constant                       shift and go to state 6
 
 state 14
 
-    (12) constant -> LBRACKET arglist . RBRACKET
+    (11) array -> LBRACKET arglist . RBRACKET
 
     RBRACKET        shift and go to state 21
 
 
 state 15
 
-    (9) arglist -> expression . COMMA arglist
-    (10) arglist -> expression .
+    (8) arglist -> expression . COMMA arglist
+    (9) arglist -> expression .
 
     COMMA           shift and go to state 22
-    RBRACKET        reduce using rule 10 (arglist -> expression .)
-    RPAREN          reduce using rule 10 (arglist -> expression .)
+    RBRACKET        reduce using rule 9 (arglist -> expression .)
+    RPAREN          reduce using rule 9 (arglist -> expression .)
 
 
 state 16
 
-    (14) constant -> MINUS NUMBER .
+    (12) array -> LIST LPAREN . expression RPAREN
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
-    $end            reduce using rule 14 (constant -> MINUS NUMBER .)
-    COMMA           reduce using rule 14 (constant -> MINUS NUMBER .)
-    RBRACKET        reduce using rule 14 (constant -> MINUS NUMBER .)
-    RPAREN          reduce using rule 14 (constant -> MINUS NUMBER .)
+    ID              shift and go to state 4
+    LBRACKET        shift and go to state 7
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
+    expression                     shift and go to state 23
+    array                          shift and go to state 5
+    constant                       shift and go to state 6
 
 state 17
 
-    (2) statement -> FOREACH LPAREN foreachargs . RPAREN
+    (15) constant -> MINUS NUMBER .
 
-    RPAREN          shift and go to state 23
+    $end            reduce using rule 15 (constant -> MINUS NUMBER .)
+    COMMA           reduce using rule 15 (constant -> MINUS NUMBER .)
+    RBRACKET        reduce using rule 15 (constant -> MINUS NUMBER .)
+    RPAREN          reduce using rule 15 (constant -> MINUS NUMBER .)
 
 
 state 18
+
+    (2) statement -> FOREACH LPAREN foreachargs . RPAREN
+
+    RPAREN          shift and go to state 24
+
+
+state 19
 
     (3) foreachargs -> expression .
     (4) foreachargs -> expression . COMMA NUMBER
     (5) foreachargs -> expression . COMMA NUMBER COMMA NUMBER
 
     RPAREN          reduce using rule 3 (foreachargs -> expression .)
-    COMMA           shift and go to state 24
-
-
-state 19
-
-    (6) expression -> LIST LPAREN expression . RPAREN
-
-    RPAREN          shift and go to state 25
+    COMMA           shift and go to state 25
 
 
 state 20
 
-    (8) expression -> ID LPAREN arglist . RPAREN
+    (7) expression -> ID LPAREN arglist . RPAREN
 
     RPAREN          shift and go to state 26
 
 
 state 21
 
-    (12) constant -> LBRACKET arglist RBRACKET .
+    (11) array -> LBRACKET arglist RBRACKET .
 
-    $end            reduce using rule 12 (constant -> LBRACKET arglist RBRACKET .)
-    COMMA           reduce using rule 12 (constant -> LBRACKET arglist RBRACKET .)
-    RBRACKET        reduce using rule 12 (constant -> LBRACKET arglist RBRACKET .)
-    RPAREN          reduce using rule 12 (constant -> LBRACKET arglist RBRACKET .)
+    $end            reduce using rule 11 (array -> LBRACKET arglist RBRACKET .)
+    COMMA           reduce using rule 11 (array -> LBRACKET arglist RBRACKET .)
+    RBRACKET        reduce using rule 11 (array -> LBRACKET arglist RBRACKET .)
+    RPAREN          reduce using rule 11 (array -> LBRACKET arglist RBRACKET .)
 
 
 state 22
 
-    (9) arglist -> expression COMMA . arglist
-    (9) arglist -> . expression COMMA arglist
-    (10) arglist -> . expression
-    (6) expression -> . LIST LPAREN expression RPAREN
-    (7) expression -> . ID
-    (8) expression -> . ID LPAREN arglist RPAREN
-    (11) expression -> . constant
-    (12) constant -> . LBRACKET arglist RBRACKET
-    (13) constant -> . STRING
-    (14) constant -> . MINUS NUMBER
-    (15) constant -> . NUMBER
+    (8) arglist -> expression COMMA . arglist
+    (8) arglist -> . expression COMMA arglist
+    (9) arglist -> . expression
+    (6) expression -> . ID
+    (7) expression -> . ID LPAREN arglist RPAREN
+    (10) expression -> . array
+    (13) expression -> . constant
+    (11) array -> . LBRACKET arglist RBRACKET
+    (12) array -> . LIST LPAREN expression RPAREN
+    (14) constant -> . STRING
+    (15) constant -> . MINUS NUMBER
+    (16) constant -> . NUMBER
 
-    LIST            shift and go to state 4
-    ID              shift and go to state 5
+    ID              shift and go to state 4
     LBRACKET        shift and go to state 7
-    STRING          shift and go to state 8
-    MINUS           shift and go to state 9
-    NUMBER          shift and go to state 10
+    LIST            shift and go to state 8
+    STRING          shift and go to state 9
+    MINUS           shift and go to state 10
+    NUMBER          shift and go to state 11
 
     expression                     shift and go to state 15
     arglist                        shift and go to state 27
+    array                          shift and go to state 5
     constant                       shift and go to state 6
 
 state 23
+
+    (12) array -> LIST LPAREN expression . RPAREN
+
+    RPAREN          shift and go to state 28
+
+
+state 24
 
     (2) statement -> FOREACH LPAREN foreachargs RPAREN .
 
     $end            reduce using rule 2 (statement -> FOREACH LPAREN foreachargs RPAREN .)
 
 
-state 24
+state 25
 
     (4) foreachargs -> expression COMMA . NUMBER
     (5) foreachargs -> expression COMMA . NUMBER COMMA NUMBER
 
-    NUMBER          shift and go to state 28
-
-
-state 25
-
-    (6) expression -> LIST LPAREN expression RPAREN .
-
-    $end            reduce using rule 6 (expression -> LIST LPAREN expression RPAREN .)
-    COMMA           reduce using rule 6 (expression -> LIST LPAREN expression RPAREN .)
-    RBRACKET        reduce using rule 6 (expression -> LIST LPAREN expression RPAREN .)
-    RPAREN          reduce using rule 6 (expression -> LIST LPAREN expression RPAREN .)
+    NUMBER          shift and go to state 29
 
 
 state 26
 
-    (8) expression -> ID LPAREN arglist RPAREN .
+    (7) expression -> ID LPAREN arglist RPAREN .
 
-    $end            reduce using rule 8 (expression -> ID LPAREN arglist RPAREN .)
-    COMMA           reduce using rule 8 (expression -> ID LPAREN arglist RPAREN .)
-    RBRACKET        reduce using rule 8 (expression -> ID LPAREN arglist RPAREN .)
-    RPAREN          reduce using rule 8 (expression -> ID LPAREN arglist RPAREN .)
+    $end            reduce using rule 7 (expression -> ID LPAREN arglist RPAREN .)
+    COMMA           reduce using rule 7 (expression -> ID LPAREN arglist RPAREN .)
+    RBRACKET        reduce using rule 7 (expression -> ID LPAREN arglist RPAREN .)
+    RPAREN          reduce using rule 7 (expression -> ID LPAREN arglist RPAREN .)
 
 
 state 27
 
-    (9) arglist -> expression COMMA arglist .
+    (8) arglist -> expression COMMA arglist .
 
-    RBRACKET        reduce using rule 9 (arglist -> expression COMMA arglist .)
-    RPAREN          reduce using rule 9 (arglist -> expression COMMA arglist .)
+    RBRACKET        reduce using rule 8 (arglist -> expression COMMA arglist .)
+    RPAREN          reduce using rule 8 (arglist -> expression COMMA arglist .)
 
 
 state 28
+
+    (12) array -> LIST LPAREN expression RPAREN .
+
+    $end            reduce using rule 12 (array -> LIST LPAREN expression RPAREN .)
+    COMMA           reduce using rule 12 (array -> LIST LPAREN expression RPAREN .)
+    RBRACKET        reduce using rule 12 (array -> LIST LPAREN expression RPAREN .)
+    RPAREN          reduce using rule 12 (array -> LIST LPAREN expression RPAREN .)
+
+
+state 29
 
     (4) foreachargs -> expression COMMA NUMBER .
     (5) foreachargs -> expression COMMA NUMBER . COMMA NUMBER
 
     RPAREN          reduce using rule 4 (foreachargs -> expression COMMA NUMBER .)
-    COMMA           shift and go to state 29
-
-
-state 29
-
-    (5) foreachargs -> expression COMMA NUMBER COMMA . NUMBER
-
-    NUMBER          shift and go to state 30
+    COMMA           shift and go to state 30
 
 
 state 30
+
+    (5) foreachargs -> expression COMMA NUMBER COMMA . NUMBER
+
+    NUMBER          shift and go to state 31
+
+
+state 31
 
     (5) foreachargs -> expression COMMA NUMBER COMMA NUMBER .
 
