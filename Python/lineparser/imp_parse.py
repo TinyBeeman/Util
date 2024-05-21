@@ -36,60 +36,6 @@ import ply.yacc as yacc
 import random
 import enum
 
-
-class ImpState:
-    m_artist = None
-    m_medium = None
-    m_batch_size = 1
-    m_batch_count = 1
-    m_vars = None
-
-    def __init__(self):
-        self.m_artist = [ "Van Gogh", "Norman Rockwell", "Alphonse Mucha", "Edward Hopper" ]
-        self.m_medium = [ "Oil Painting", "Sculpture", "Photo", "Watercolor", "Acrylic"]
-        self.m_vars = {} 
-
-    @property
-    def batch_size(self):
-        return self.m_batch_size
-    
-    @batch_size.setter
-    def batch_size(self, value):
-        self.m_batch_size = value
-
-    @property
-    def batch_count(self):
-        return self.m_batch_count
-    
-    @batch_count.setter
-    def batch_count(self, value):
-        self.m_batch_count = value
-
-    def check_args(args, allowed):
-        if (isinstance(allowed, list)):
-            for a in allowed:
-                if a == len(args):
-                    return True
-        else:
-            if allowed == len(args):
-                return True
-        return False
-    
-    def set_var(self, key, value):
-        self.m_vars[key] = value
-    
-    def get_var(self, key):
-        return self.m_vars[key]
-    
-    def get_list(self, name):
-        match name:
-            case "artist":
-                return self.m_artist
-            case "medium":
-                return self.m_medium
-        return [ "Missing List " + name ]
-
-
 reserved = {
    'list' : 'LIST',
    'foreach' : 'FOREACH'
@@ -146,15 +92,73 @@ g_lexer = lex.lex()
 def verbose_level():
     return 1
 
-class StatementType(enum.IntEnum):
-    NONE = enum.auto()
-    SIMPLE = enum.auto()
-    FOREACH = enum.auto()
+
+class ImpException(Exception):
+    pass
+
+class ImpState:
+    m_artist = None
+    m_medium = None
+    m_batch_size = 1
+    m_batch_count = 1
+    m_vars = None
+
+    def __init__(self):
+        self.m_artist = [ "Van Gogh", "Norman Rockwell", "Alphonse Mucha", "Edward Hopper" ]
+        self.m_medium = [ "Oil Painting", "Sculpture", "Photo", "Watercolor", "Acrylic"]
+        self.m_vars = {} 
+
+    @property
+    def batch_size(self):
+        return self.m_batch_size
+    
+    @batch_size.setter
+    def batch_size(self, value):
+        self.m_batch_size = value
+
+    @property
+    def batch_count(self):
+        return self.m_batch_count
+    
+    @batch_count.setter
+    def batch_count(self, value):
+        self.m_batch_count = value
+
+    def check_args(args, allowed):
+        if (isinstance(allowed, list)):
+            for a in allowed:
+                if a == len(args):
+                    return True
+        else:
+            if allowed == len(args):
+                return True
+        return False
+    
+    def set_var(self, key, value):
+        self.m_vars[key] = value
+    
+    def get_var(self, key):
+        return self.m_vars[key]
+    
+    def get_list(self, name):
+        match name:
+            case "artist":
+                return self.m_artist
+            case "medium":
+                return self.m_medium
+        return [ "Missing List " + name ]
+
 
 class ParseNode:
     m_children = None
     m_last_value = None
     m_local_iteration = -1
+    m_is_constant = None
+
+    # foreach arguments
+    m_foreach_list_count = -1
+    m_foreach_repeat = -1
+    m_index = -1
 
     def __init__(self, type, children=None, leaf=None):
         self.m_type = type
@@ -166,16 +170,6 @@ class ParseNode:
 
     def insert_child(self, index, child):
         self.m_children.insert(index, child)
-
-    def get_statement_type(self):
-        if (self.m_type == "func" and self.m_leaf.lower() == "foreach"):
-            return StatementType.FOREACH
-
-        for c in self.m_children:
-            if c.get_statement_type() == StatementType.FOREACH:
-                return StatementType.FOREACH
-        
-        return StatementType.SIMPLE
 
     def run_func(self, id, args, global_iteration, state):
         match id.lower():
@@ -206,11 +200,8 @@ class ParseNode:
                 return random.randint(min, max)
             case 'update_c':
                 return args[0]
-            
-            
-# update_b( value_cmd, [tag_name] ) calls cmd for every new batch, previous value otherwise. (same as update_c( cmd, batch_size ))
-# update_c( value_cmd, c, [tag_name] ) calls cmd whenever the (prompt count % c) == 0, previous value otherwise
-
+            case 'update_b':
+                return args[0]
             case _:
                 return f"{id} Function Not Yet Implemented"
 
@@ -234,9 +225,13 @@ class ParseNode:
             # assert(self.m_children[0].m_type == "foreachargs")
             # Expression: self.m_children[0].m_children[0]
             rg_args = self.get_foreach_args(state)
-            return [ len(rg_args[0]), rg_args[1], rg_args[2] ]
+            self.m_foreach_list_count = len(rg_args[0])
+            self.m_foreach_repeat = rg_args[1]
+            self.m_index = rg_args[2]
         else:
-            return [0,0,0]
+            self.m_foreach_list_count = 0
+            self.m_foreach_repeat = 0
+            self.m_index = 0
 
     def get_value_no_iteration(self, state: ImpState, global_iteration = 0, stack_depth=0 ):
         if (self.m_last_value != None):
@@ -244,7 +239,37 @@ class ParseNode:
         else:
             return self.process(state, global_iteration, stack_depth)
 
+    # Returns true if this node's results never change
+    def is_constant(self):
+        if (self.m_is_constant is not None):
+            return self.m_is_constant
+        
+        match self.m_type:
+            case "func":
+                match self.m_leaf:
+                    case 'rndi' | 'rnda' | 'nexta' :
+                        self.m_is_constant = False
+                        return False
+            case 'constant' | 'id' | 'list':
+                self.m_is_constant = True
+            case 'foreach':
+                self.m_is_constant = False
+
+        if (self.m_is_constant is None):
+            for c in self.m_children:
+                if not c.is_constant():
+                    self.m_is_constant = False
+
+        if (self.m_is_constant is None):
+            self.m_is_constant = True
+        return self.m_is_constant
+
     def process(self, state: ImpState, global_iteration, stack_depth=0):
+        # Do we really need to run this again?
+        if (self.m_last_value is not None and self.is_constant()):
+            # self.m_children = None
+            return self.m_last_value
+        
         pchildren = []
         leafstring = ('(' + str(self.m_leaf) + ')') if self.m_leaf is not None else ''
         nodestring = f"{self.m_type + leafstring} node"
@@ -289,8 +314,6 @@ class ParseNode:
                 res = pchildren
             case "id":
                 res = self.m_leaf
-            case "neg_number":
-                res = -1 * self.m_leaf
             case "constant":
                 res = self.m_leaf
             case "list":
@@ -317,6 +340,18 @@ class ParseNode:
             children += c.describe_self()
         children += " ]"
         return f"ParseNode( { self.m_type }, leaf={ self.m_leaf }, children={children} )"
+    
+    @property
+    def foreach_list_count(self):
+        return self.m_foreach_list_count
+    
+    @property
+    def foreach_repeat(self):
+        return self.m_foreach_repeat
+    
+    @property
+    def index(self):
+        return self.m_index
 
 def p_statement_expr(p):
     'statement : expression'
@@ -424,14 +459,20 @@ class ImpCode:
         s += "\n"
         return s        
     
-    def get_tree(self):
+    def get_tree(self) -> ParseNode:
         global g_parser
         if (self.m_tree is None):
-            self.m_tree = g_parser.parse(self.m_raw)
+            try:
+                self.m_tree = g_parser.parse(self.m_raw)
+            except Exception as ex:
+                print(f"Parse Exception parsing {self.m_raw}")
+                print(type(ex))
+                print(ex.args)
+                print(ex)
         return self.m_tree
 
 
-class Imprompt:
+class ImpPrompt:
     m_prompt: str = ""
     m_seed: int = -1
 
@@ -481,7 +522,7 @@ class ImpParser:
         for m in re.finditer(rx, self.m_raw):
             c = m.group('code')
             if (c is not None):
-                self.m_codes.append(ImpCode(c))        
+                self.m_codes.append(ImpCode(c))    
 
     @property
     def batch_size(self):
@@ -496,8 +537,21 @@ class ImpParser:
     
     def get_all_prompts(self):
         count = self.m_state.batch_size * self.m_state.batch_count
+
+        foreach_count = 1
+        for c in self.m_codes:
+            tree = c.get_tree()
+            tree.preprocess(self.m_state)
+        self.m_codes.sort(key=lambda code: code.get_tree().index )
+        
+        for c in self.m_codes:
+            if tree.foreach_list_count > 0:
+                # TODO: Increase repeat count to allow for multipliers
+                foreach_count = foreach_count * tree.foreach_list_count * tree.foreach_repeat
+                count = foreach_count
+
         prompts = []
-        for i in range(0, count - 1):
+        for i in range(0, count):
             prompts.append(self.produce_prompt(i))
         return prompts
 
@@ -517,7 +571,6 @@ class ImpParser:
             output = output.replace(raw, str(res))
         return output
 
-
     def describe_self(self):
         s = "PARSER:\n"
         s += f"Raw Prompt: {self.m_raw}\n"
@@ -528,13 +581,14 @@ class ImpParser:
 
 def test():
     parser = ImpParser()
-    parser.raw_prompt = r'A {{rnda(list("medium"))}} by {{foreach(list("artist"), 4)}} of {{update_c(nexta(list("artist")), 2)}} with {{rndi(1,5)}} heads.'
+    # parser.raw_prompt = r'A {{rnda(list("medium"))}} by {{foreach(list("artist"), 3)}} of {{update_b(nexta(list("artist")))}} with {{rndi(1,5)}} heads.'
+    parser.raw_prompt = r'A {{foreach(list("medium"))}} by {{foreach(list("artist"), 3)}}.'
     parser.batch_size = 4
     parser.batch_count = 2
     # print(parser.get_token_prompt())
     prompts = parser.get_all_prompts()
-    for p in prompts:
-        print(p)
+    for i in range(0, len(prompts)):
+        print(f"{str(i):>04}: {prompts[i]}")
 
 
 test()
